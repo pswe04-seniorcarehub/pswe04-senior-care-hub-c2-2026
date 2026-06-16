@@ -26,7 +26,7 @@ SeniorCareHub es una plataforma **IoT distribuida** que recibe datos desde un di
 9. [Documentación](#-documentación)
 10. [Equipo](#-equipo)
 11. [Información académica](#-información-académica)
-12. [Estado del proyecto](#-estado-del-proyecto)
+12. [Hito actual](#-hito-actual)
 
 ---
 
@@ -190,11 +190,13 @@ pswe04-senior-care-hub-c2-2026/
 
 ---
 
-## 📌 Estado del proyecto
+## 🏁 Hito actual
 
-| Versión | Fecha | Hito | Estado |
-|---|---|---|---|
-| 0.1 | 2026-05-26 | Propuesta (S03) | 🟠 En progreso |
+El proyecto se encuentra en su primer hito: la **Propuesta (S03)**. Su entregable establece el contexto, el problema, el objetivo, el alcance y los criterios de complejidad que fundamentan el diseño del sistema.
+
+| Hito | Semana | Versión | Fecha | Documento |
+|---|---|---|---|---|
+| **Propuesta** | S03 | 0.1 | 2026-05-26 | [📄 Propuesta S03](./docs/s03-propuesta.md) |
 
 ---
 
