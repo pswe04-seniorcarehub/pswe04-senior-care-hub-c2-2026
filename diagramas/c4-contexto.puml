@@ -1,0 +1,31 @@
+@startuml c4-contexto-seniorcarehub
+' =====================================================================
+' SeniorCareHub - Vista de contexto (C4 - Nivel 1)
+' PSWE-04 - Avance 1 (S07)
+' Render: PlantUML + extension C4-PlantUML (se incluye de forma remota)
+' =====================================================================
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Vista de contexto (C4 - Nivel 1): SeniorCareHub
+
+Person(adultoMayor, "Adulto Mayor", "Persona monitoreada mediante un wearable; consulta su estado de monitoreo, su perfil e historial.")
+Person(familiar, "Familiar", "Recibe alertas y consulta el estado e historial del adulto mayor.")
+Person(cuidador, "Cuidador Profesional", "Monitorea a varios adultos mayores y gestiona incidentes.")
+Person(admin, "Administrador del Sistema", "Configura reglas de detección, usuarios y canales de notificación.")
+
+System(sch, "SeniorCareHub", "Plataforma distribuida que recibe eventos del wearable, detecta situaciones criticas mediante reglas configurables y notifica a familiares y cuidadores por multiples canales.")
+
+System_Ext(wearable, "Wearable (simulado)", "Emite eventos de movimiento, inactividad y ubicacion del adulto mayor.")
+System_Ext(notif, "Servicios de notificacion externos", "Proveedores de correo, SMS y mensajeria que entregan las alertas.")
+
+Rel(adultoMayor, sch, "Consulta estado de monitoreo y su perfil")
+Rel_D(wearable, sch, "Emite eventos de salud y ubicacion", "asincrono")
+Rel(admin, sch, "Configura reglas, usuarios y canales")
+Rel(cuidador, sch, "Monitorea y gestiona incidentes")
+Rel(familiar, sch, "Consulta estado e historial")
+Rel_D(sch, notif, "Envia alertas (correo, SMS, mensajeria)")
+Rel(notif, familiar, "Entrega la alerta")
+Rel(notif, cuidador, "Entrega la alerta")
+
+SHOW_LEGEND()
+@enduml
