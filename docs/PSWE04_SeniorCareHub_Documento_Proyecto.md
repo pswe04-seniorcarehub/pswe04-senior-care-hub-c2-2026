@@ -13,7 +13,7 @@
 | **Docente** | Juan Mauricio Leandro Jimenez |
 | **Cuatrimestre** | 2026 — II Cuatrimestre |
 | **Versión del documento** | 0.2 — Avance 1(S07) |
-| **Fecha de última actualización** | 2026-06-22 |
+| **Fecha de última actualización** | 2026-06-23 |
 
 ---
 
@@ -22,7 +22,7 @@
 | Versión | Fecha | Hito | Cambios principales | Autor(es) |
 |---|---|---|---|---|
 | 0.1 | 2026-05-26 | Propuesta (S03) | Creación del documento inicial | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
-| 0.2 | 2026-06-22 | Avance 1 (S07) | Desarrollo del contexto del sistema, alcance, usuarios, stakeholders, drivers arquitectónicos, escenarios de calidad y vista de contexto C4. | Roberto Obed Del Cid Winter — P000024239, Lisdiana Mercedes Rodriguez Alvarado — P000030183, Maria Isabel Vallejos Rodriguez — P000020526 |
+| 0.2 | 2026-06-23 | Avance 1 (S07) | Desarrollo del contexto del sistema, alcance, usuarios, stakeholders, drivers arquitectónicos, escenarios de calidad y vista de contexto C4. | Roberto Obed Del Cid Winter — P000024239, Lisdiana Mercedes Rodriguez Alvarado — P000030183, Maria Isabel Vallejos Rodriguez — P000020526 |
 
 ---
 
@@ -30,6 +30,7 @@
 
 1. [Descripción del sistema y alcance](#1-descripción-del-sistema-y-alcance)
 2. [Stakeholders](#2-stakeholders)
+4. [Requerimientos de calidad — Escenarios](#4-requerimientos-de-calidad--escenarios)
 
 ---
 
@@ -104,5 +105,82 @@ La naturaleza del dominio exige que los eventos críticos sean identificados y c
 | Administrador del Sistema | Operación de la plataforma | Disponibilidad y gestión eficiente | Fallos operativos |
 
 ---
+
+# BLOQUE 2 — REQUERIMIENTOS DE CALIDAD
+*Hito: Avance 1 (S07)*
+
+---
+
+## 4. Requerimientos de calidad — Escenarios
+
+Un escenario de calidad es una descripción concreta y medible de cómo el sistema debe responder ante un estímulo específico. El formato ISO/IEEE de 6 elementos es muy utilizado para representar estos escenarios ya que muestra como se desenvuelve el sistema ante diferentes situaciones.
+
+Para los fines de este proyecto se identificaron 5 atributos de calidad y sus respectivas tensiones cuando corresponden.
+
+## Escenario QS-01 — Disponibilidad
+
+| Elemento | Descripción |
+|-----------|-------------|
+| **Fuente del estímulo** | Familiar o cuidador |
+| **Estímulo** | Eventos continuos de monitoreo y generación de alertas|
+| **Entorno** | Operación continua durante un mes de funcionamiento normal |
+| **Artefacto** | Plataforma SeniorCareHub (pipeline de monitoreo y dashboard)|
+| **Respuesta** | El sistema permite acceder al estado y al historial sin interrupciones significativas|
+| **Medida de respuesta** | El pipeline crítico de monitoreo y consulta mantiene una disponibilidad mensual ≥ 99.5 %, equivalente a un tiempo máximo de indisponibilidad de 3.6 horas por mes |
+
+**Tensión con:** QS-04 (Seguridad y privacidad), porque mecanismos de autenticación, auditoría y mantenimiento pueden introducir indisponibilidad temporal.
+
+## Escenario QS-02 — Rendimiento
+
+| Elemento | Descripción |
+|-----------|-------------|
+| **Fuente del estímulo** | Wearable asociado a un adulto mayor |
+| **Estímulo** | Se detecta un evento crítico de caída o inactividad prolongada |
+| **Entorno** | Operación normal con múltiples eventos procesándose simultáneamente |
+| **Artefacto** | Pipeline de procesamiento de eventos y subsistema de notificaciones |
+| **Respuesta** | El sistema clasifica el evento y envía la alerta a los destinatarios configurados |
+| **Medida de respuesta** | Desde la recepción del evento crítico hasta el envío de la primera notificación transcurren ≤ 5 segundos en el percentil 95 |
+
+**Tensión con:** QS-03 (Resiliencia), debido a que reintentos y mecanismos de recuperación incrementan la latencia. También tensiona con QS-05 (Modificabilidad), porque reglas más flexibles pueden aumentar el tiempo de procesamiento.
+
+## Escenario QS-03 — Tolerancia a fallos / Resiliencia
+
+| Elemento | Descripción |
+|-----------|-------------|
+| **Fuente del estímulo** | Servicio externo de notificaciones |
+| **Estímulo** | El proveedor principal de envío de SMS presenta una falla |
+| **Entorno** | Operación normal |
+| **Artefacto** | Subsistema de notificaciones |
+| **Respuesta** | El sistema continúa intentando la entrega utilizando otros canales disponibles y registra la incidencia |
+| **Medida de respuesta** | El sistema garantiza que ninguna alerta crítica se pierda y logra la entrega mediante al menos un canal disponible en menos de 10 segundos |
+
+**Tensión con:** QS-02 (Rendimiento), porque los mecanismos de recuperación y reintentos agregan tiempo adicional.
+
+## Escenario QS-04 — Seguridad y privacidad
+
+| Elemento | Descripción |
+|-----------|-------------|
+| **Fuente del estímulo** | Usuario no autorizado |
+| **Estímulo** | Intento de acceso a información sensible como ubicación y estado de un adulto mayor sin permisos |
+| **Entorno** | Operación normal |
+| **Artefacto** | Subsistema de autenticación y autorización |
+| **Respuesta** | El sistema bloquea el acceso, se registra el intento y mantiene protegidos los datos sensibles |
+| **Medida de respuesta** | El 100 % de los accesos no autorizados son bloqueados y auditados |
+
+**Tensión con:** QS-01 (Disponibilidad), porque mecanismos de seguridad, auditoría y mantenimiento pueden impactar la continuidad del servicio.
+
+## Escenario QS-05 — Modificabilidad
+
+| Elemento | Descripción |
+|-----------|-------------|
+| **Fuente del estímulo** | Administrador del sistema |
+| **Estímulo** | Se requiere agregar una nueva regla de detección o modificar los criterios de criticidad de un perfil de monitoreo |
+| **Entorno** | Operación normal con usuarios activos |
+| **Artefacto** | Motor de reglas y configuración de perfiles de monitoreo |
+| **Respuesta** | La nueva regla es incorporada y comienza a ser utilizada por el sistema sin interrumpir el servicio ni requerir redepliegues |
+| **Medida de respuesta** | La modificación entra en operación en menos de 10 minutos sin detener el sistema |
+
+**Tensión con:** QS-02 (Rendimiento), debido a que una mayor flexibilidad y configurabilidad puede incrementar el tiempo requerido para evaluar eventos y determinar su criticidad.
+
 
 *Documento generado bajo el template estándar PSWE-04 — Universidad Cenfotec — Maestría Profesional en Ingeniería del Software*
