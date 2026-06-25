@@ -22,7 +22,7 @@
 | Versión | Fecha | Hito | Cambios principales | Autor(es) |
 |---|---|---|---|---|
 | 0.1 | 2026-05-26 | Propuesta (S03) | Creación del documento inicial | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
-| 0.2 | 2026-06-24 | Avance 1 (S07) | Desarrollo del contexto del sistema, alcance, usuarios, stakeholders, drivers arquitectónicos, escenarios de calidad y vista de contexto C4. | Roberto Obed Del Cid Winter — P000024239, Lisdiana Mercedes Rodriguez Alvarado — P000030183, Maria Isabel Vallejos Rodriguez — P000020526 |
+| 0.2 | 2026-06-24 | Avance 1 (S07) | Desarrollo del contexto del sistema, alcance, usuarios, stakeholders, drivers arquitectónicos, escenarios de calidad y vista de contexto C4. | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 
 ---
 
@@ -32,6 +32,7 @@
 2. [Stakeholders](#2-stakeholders)
 3. [Drivers arquitectónicos](#3-drivers-arquitectónicos)
 4. [Requerimientos de calidad — Escenarios](#4-requerimientos-de-calidad--escenarios)
+5. [Restricciones](#5-restricciones)
 6. [Principios de diseño adoptados](#6-principios-de-diseño-adoptados)
 7. [Vistas arquitectónicas](#7-vistas-arquitectónicas)
    - 7.1 [Vista de contexto](#71-vista-de-contexto)
@@ -39,7 +40,7 @@
 ---
 
 # BLOQUE 1 — CONTEXTO Y PROBLEMA
-*Hito: Propuesta (S03)*
+*Hito: Propuesta (S03) y Avance 1 (S07)*
 
 ---
 
@@ -237,6 +238,17 @@ Para los fines de este proyecto se identificaron 5 atributos de calidad y sus re
 | **Medida de respuesta** | La modificación entra en operación en menos de 10 minutos sin detener el sistema |
 
 **Tensión con:** QS-02 (Rendimiento), debido a que una mayor flexibilidad y configurabilidad puede incrementar el tiempo requerido para evaluar eventos y determinar su criticidad.
+
+---
+
+## 5. Restricciones
+
+| ID | Restricción | Tipo | Origen | Impacto en el diseño |
+|---|---|---|---|---|
+| REST-01 | La entrega de alertas depende de servicios externos de notificación (correo electrónico, SMS y mensajería) que están fuera del control del sistema. | Técnica            | Dominio del problema y proveedores externos | La arquitectura debe aislar estas dependencias y tolerar fallos, indisponibilidad o cambios en los proveedores sin comprometer la generación y gestión de alertas. |
+| REST-02 | El sistema debe cumplir con la Ley N.° 8968 de Protección de la Persona frente al Tratamiento de sus Datos Personales de Costa Rica.                | Regulatoria        | Marco legal costarricense                   | Obliga a proteger datos sensibles como identidad, ubicación y estado de monitoreo mediante mecanismos de control de acceso, auditoría y protección de datos.       |
+| REST-03 | Para los fines del proyecto se utilizarán eventos simulados en lugar de dispositivos wearable reales.                                               | Proyecto           | Alcance definido para el proyecto académico | El diseño debe desacoplar la plataforma de dispositivos específicos y permitir que la fuente de eventos sea simulada sin afectar el resto de la arquitectura.      |
+| REST-04 | El alcance del proyecto está orientado al diseño arquitectónico de la solución y no a la implementación completa de un sistema productivo.          | Negocio / Proyecto | Curso PSWE-04                               | Las decisiones se enfocan en arquitectura, atributos de calidad, componentes e integración, sin requerir el desarrollo completo de todas las funcionalidades.      |
 
 ---
 
