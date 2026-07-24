@@ -337,62 +337,64 @@ flowchart LR
 Esta vista abre la caja negra de SeniorCareHub presentada en §7.1 y muestra las unidades desplegables que la componen, la tecnología de cada una y los protocolos de comunicación entre ellas. Los actores y los sistemas externos son exactamente los mismos de la vista de contexto: no se introduce ningún elemento externo nuevo.
 
 ```mermaid
-flowchart LR
+flowchart TB
     %% ---------- Actores ----------
-    AM["👤 Adulto Mayor<br/><i>Porta el wearable</i>"]
-    FA["👤 Familiar<br/><i>Recibe alertas y consulta</i>"]
-    CU["👤 Cuidador Profesional<br/><i>Monitorea y gestiona</i>"]
-    AD["👤 Administrador<br/><i>Configura reglas y usuarios</i>"]
+    AM["Adulto Mayor"]
+    FA["Familiar"]
+    CU["Cuidador Profesional"]
+    AD["Administrador"]
 
     %% ---------- Sistemas externos ----------
-    WE["🔌 Wearable simulado<br/><i>Sistema externo</i>"]
-    NO["🔌 Servicios de notificacion externos<br/><i>Sistema externo · correo, SMS, mensajeria</i>"]
+    WE["Wearable simulado<br/><i>sistema externo</i>"]
+    NO["Servicios de notificacion<br/><i>sistema externo</i>"]
 
     %% ---------- Contenedores ----------
     subgraph SCH["SeniorCareHub"]
         direction TB
-        C1["<b>App Web (dashboard)</b><br/>SPA React + TypeScript<br/>Azure Static Web Apps"]
-        C2["<b>API de Aplicacion</b><br/>ASP.NET Core Web API<br/>Azure App Service"]
-        C3["<b>Servicio de Ingesta</b><br/>ASP.NET Core<br/>Azure App Service"]
-        C4["<b>Bus de Mensajeria</b><br/>Azure Service Bus Standard<br/>topics + subscriptions"]
-        C5["<b>Motor de Reglas</b><br/>.NET Worker Service<br/>Azure Container Apps"]
-        C6["<b>Servicio de Notificaciones</b><br/>.NET Worker Service<br/>Azure Container Apps"]
-        C7[("<b>BD Operativa</b><br/>Azure Database for PostgreSQL")]
-        C8[("<b>Almacen de Eventos</b><br/>PostgreSQL particionado por tiempo")]
+        C1["App Web<br/>React + TypeScript"]
+        C2["API de Aplicacion<br/>ASP.NET Core"]
+        C3["Servicio de Ingesta<br/>ASP.NET Core"]
+        C4["Bus de Mensajeria<br/>Azure Service Bus"]
+        C5["Motor de Reglas<br/>.NET Worker"]
+        C6["Servicio de Notificaciones<br/>.NET Worker"]
+        C7[("BD Operativa<br/>PostgreSQL")]
+        C8[("Almacen de Eventos<br/>PostgreSQL")]
     end
 
     %% ---------- Relaciones ----------
     AM -.->|"porta"| WE
-    WE -->|"eventos · HTTPS/JSON sobre TLS"| C3
-    FA -->|"consulta y confirma · HTTPS"| C1
-    CU -->|"monitorea y gestiona · HTTPS"| C1
-    AD -->|"configura · HTTPS"| C1
+    AM -->|"HTTPS"| C1
+    FA -->|"HTTPS"| C1
+    CU -->|"HTTPS"| C1
+    AD -->|"HTTPS"| C1
+    WE -->|"HTTPS/TLS"| C3
 
     C1 -->|"HTTPS/JSON"| C2
-    C3 -->|"publica evento crudo · AMQP 1.0"| C4
-    C4 -->|"entrega evento crudo · AMQP 1.0"| C5
-    C5 -->|"publica alerta confirmada · AMQP 1.0"| C4
-    C4 -->|"entrega alerta confirmada · AMQP 1.0"| C6
-    C6 -->|"envia notificacion · HTTPS/REST y SMTP"| NO
+    C3 -->|"AMQP 1.0"| C4
+    C4 -->|"AMQP 1.0"| C5
+    C5 -->|"AMQP 1.0"| C4
+    C4 -->|"AMQP 1.0"| C6
+    C6 -->|"HTTPS y SMTP"| NO
 
-    C2 -->|"SQL · PostgreSQL wire sobre TLS"| C7
-    C5 -->|"SQL · lee reglas, escribe alertas"| C7
-    C6 -->|"SQL · registra acuse de entrega"| C7
-    C3 -->|"SQL · persiste evento"| C8
-    C2 -->|"SQL · consulta historial"| C8
+    C2 -->|"SQL/TLS"| C7
+    C5 -->|"SQL/TLS"| C7
+    C6 -->|"SQL/TLS"| C7
+    C3 -->|"SQL/TLS"| C8
+    C2 -->|"SQL/TLS"| C8
 
     %% ---------- Estilos ----------
     classDef actor fill:#08427B,stroke:#052E56,color:#FFFFFF
     classDef ext fill:#999999,stroke:#6B6B6B,color:#FFFFFF
     classDef cont fill:#438DD5,stroke:#2E6295,color:#FFFFFF
-    classDef db fill:#438DD5,stroke:#2E6295,color:#FFFFFF
     class AM,FA,CU,AD actor
     class WE,NO ext
-    class C1,C2,C3,C4,C5,C6 cont
-    class C7,C8 db
+    class C1,C2,C3,C4,C5,C6,C7,C8 cont
 ```
 
-> **Leyenda.** Azul oscuro: actores (personas). Gris: sistemas externos fuera del alcance del equipo. Azul claro: contenedores de SeniorCareHub. Los cilindros representan almacenes de datos. Cada relación indica el protocolo de comunicación.
+> **Leyenda.** Azul oscuro: actores. Gris: sistemas externos fuera del alcance del equipo.
+> Azul claro: contenedores de SeniorCareHub; los cilindros son almacenes de datos.
+> Cada relación indica el protocolo; el detalle de qué transporta cada una se encuentra
+> en la tabla 7.2.2.
 >
 > Fuente editable en notación e iconografía C4 formal: `diagramas/c4-contenedores.puml`.
 
@@ -414,6 +416,7 @@ flowchart LR
 | Origen | Destino | Protocolo | Descripción |
 |---|---|---|---|
 | Wearable simulado | Servicio de Ingesta | HTTPS/JSON sobre TLS | Emite eventos de movimiento, inactividad y ubicación. |
+| Adulto Mayor | App Web | HTTPS | Consulta su propio estado e historial desde el portal. |
 | Familiar / Cuidador / Administrador | App Web | HTTPS | Acceden al dashboard desde el navegador. |
 | App Web | API de Aplicación | HTTPS/JSON | Consultas y operaciones de configuración. |
 | Servicio de Ingesta | Bus de Mensajería | AMQP 1.0 sobre TLS | Publica el evento crudo en el tópico correspondiente. |
@@ -426,7 +429,7 @@ flowchart LR
 
 #### 7.2.3 Consistencia con la vista de contexto
 
-Los cuatro actores (Adulto Mayor, Familiar, Cuidador Profesional y Administrador) y los dos sistemas externos (Wearable simulado y Servicios de notificación externos) son los mismos declarados en §7.1, sin altas ni bajas. Las relaciones que en la vista de contexto entraban o salían de la caja única de SeniorCareHub se refinan aquí hacia el contenedor específico que las atiende: la emisión de eventos del wearable aterriza en el Servicio de Ingesta, el acceso de los tres actores humanos entra por la App Web, y la salida hacia los proveedores de notificación parte del Servicio de Notificaciones. El Adulto Mayor mantiene una relación indirecta con el sistema, mediada por el wearable, tal como se representó en §7.1.
+Los cuatro actores (Adulto Mayor, Familiar, Cuidador Profesional y Administrador) y los dos sistemas externos (Wearable simulado y Servicios de notificación externos) son los mismos declarados en §7.1, sin altas ni bajas. Las relaciones que en la vista de contexto entraban o salían de la caja única de SeniorCareHub se refinan aquí hacia el contenedor específico que las atiende: la emisión de eventos del wearable aterriza en el Servicio de Ingesta, el acceso de los tres actores humanos entra por la App Web, y la salida hacia los proveedores de notificación parte del Servicio de Notificaciones. El Adulto Mayor conserva la doble relación con el sistema definida en §7.1: una indirecta, mediada por el wearable que genera los eventos, y una directa con la App Web cuando consulta su propio estado e historial.
 
 ---
 

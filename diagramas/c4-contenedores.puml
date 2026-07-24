@@ -9,7 +9,7 @@
 title Vista de contenedores (C4 - Nivel 2): SeniorCareHub
 
 ' ---------------------- Actores ----------------------
-Person(adultoMayor, "Adulto Mayor", "Usuario monitoreado. Porta el wearable que genera los eventos.")
+Person(adultoMayor, "Adulto Mayor", "Usuario monitoreado. Porta el wearable que genera los eventos y consulta su propio estado en el portal.")
 Person(familiar, "Familiar", "Recibe alertas y consulta el estado e historial del adulto mayor.")
 Person(cuidador, "Cuidador Profesional", "Monitorea a varios adultos mayores y gestiona incidentes.")
 Person(admin, "Administrador del Sistema", "Configura reglas de deteccion, usuarios y canales de notificacion.")
@@ -32,6 +32,7 @@ System_Boundary(sch, "SeniorCareHub") {
 
 ' ---------------------- Relaciones ----------------------
 Rel(adultoMayor, wearable, "Porta el dispositivo")
+Rel(adultoMayor, webapp, "Consulta su propio estado e historial", "HTTPS")
 Rel(wearable, ingesta, "Emite eventos", "HTTPS/JSON sobre TLS")
 
 Rel(familiar, webapp, "Consulta estado e historial y confirma alertas", "HTTPS")
