@@ -177,7 +177,7 @@ Un escenario de calidad es una descripción concreta y medible de cómo el siste
 
 Para los fines de este proyecto se identificaron 5 atributos de calidad y sus respectivas tensiones cuando corresponden.
 
-## Escenario QS-01 — Disponibilidad
+### Escenario QS-01 — Disponibilidad
 
 | Elemento | Descripción |
 |-----------|-------------|
@@ -190,7 +190,7 @@ Para los fines de este proyecto se identificaron 5 atributos de calidad y sus re
 
 **Tensión con:** QS-04 (Seguridad y privacidad), porque mecanismos de autenticación, auditoría y mantenimiento pueden introducir indisponibilidad temporal.
 
-## Escenario QS-02 — Rendimiento
+### Escenario QS-02 — Rendimiento
 
 | Elemento | Descripción |
 |-----------|-------------|
@@ -203,7 +203,7 @@ Para los fines de este proyecto se identificaron 5 atributos de calidad y sus re
 
 **Tensión con:** QS-03 (Resiliencia), debido a que reintentos y mecanismos de recuperación incrementan la latencia. También tensiona con QS-05 (Modificabilidad), porque reglas más flexibles pueden aumentar el tiempo de procesamiento y QS-05, porque la evaluación dinámica de reglas puede requerir más procesamiento que una lógica fija.
 
-## Escenario QS-03 — Tolerancia a fallos / Resiliencia
+### Escenario QS-03 — Tolerancia a fallos / Resiliencia
 
 | Elemento | Descripción |
 |-----------|-------------|
@@ -216,7 +216,7 @@ Para los fines de este proyecto se identificaron 5 atributos de calidad y sus re
 
 **Tensión con:** QS-02 (Rendimiento), porque los mecanismos de recuperación y reintentos agregan tiempo adicional.
 
-## Escenario QS-04 — Seguridad y privacidad
+### Escenario QS-04 — Seguridad y privacidad
 
 | Elemento | Descripción |
 |-----------|-------------|
@@ -229,7 +229,7 @@ Para los fines de este proyecto se identificaron 5 atributos de calidad y sus re
 
 **Tensión con:** QS-01 (Disponibilidad) y QS-02 (Rendimiento), porque mecanismos de seguridad, auditoría y mantenimiento pueden impactar la continuidad del servicio.
 
-## Escenario QS-05 — Modificabilidad
+### Escenario QS-05 — Modificabilidad
 
 | Elemento | Descripción |
 |-----------|-------------|
