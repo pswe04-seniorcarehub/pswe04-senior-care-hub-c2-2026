@@ -495,4 +495,76 @@ La elección del estilo y la selección del producto concreto de mensajería se 
 
 ---
 
+## 9. Registro de decisiones — ADRs
+Las siguientes decisiones documentan los aspectos arquitectónicos que tienen mayor impacto sobre el cumplimiento de los drivers funcionales, atributos de calidad y restricciones identificados en las secciones 3 y 4.
+
+Cada ADR indica explícitamente los drivers que origina la decisión y los escenarios de calidad que permiten validarla. De esta forma, las decisiones arquitectónicas no se presentan como elecciones tecnológicas aisladas, sino como respuestas concretas a los requerimientos prioritarios de SeniorCareHub.
+
+### Resumen de decisiones
+Se documentaron cinco decisiones arquitectónicas significativas que afectan la estructura del pipeline crítico de SeniorCareHub, la configurabilidad del motor de reglas, el manejo de falsas alarmas, la confiabilidad de entrega de eventos y el desacoplamiento del envío de notificaciones. Cada ADR detalla el contexto, la decisión tomada, las alternativas evaluadas y sus consecuencias.
+
+| ADR | Título | Estado | Drivers atendidos |
+|---|---|---|---|
+| [ADR-001](/decisiones/ADR-001-separar-ingesta-evaluacion-alertas-notificaciones.md) | Separar ingesta, evaluación, alertas y notificaciones mediante eventos | Propuesta | RF-01, RF-03, QA-01, QA-02, QA-03, REST-01 |
+| [ADR-002](/decisiones/ADR-002-motor-reglas-configurable-perfiles-versionados.md) | Implementar un motor de reglas configurable y perfiles versionados | Propuesta | RF-02, RF-05, QA-02, QA-05 |
+| [ADR-003](/decisiones/ADR-003-gestion-falsas-alarmas-correlacion-confirmacion.md) | Gestionar falsas alarmas mediante correlación, confirmación y deduplicación | Propuesta | RF-02, RF-05, QA-02, QA-03 |
+| [ADR-004](/decisiones/ADR-004-notificaciones-canales-configurables-adaptadores.md) | Desacoplar las notificaciones mediante canales configurables y adaptadores | Propuesta | RF-03, RF-05, QA-02, QA-05, REST-01 |
+
+---
+
+### ADR-001 — [Título de la decisión]
+
+| Campo | Detalle |
+|---|---|
+| **Estado** | [Aceptada] |
+| **Fecha** | [YYYY-MM-DD] |
+| **Autores** | [Nombres] |
+
+**Contexto**
+> Describí la situación que requirió tomar esta decisión. ¿Qué problema estabas resolviendo? ¿Qué constraints existían? ¿Qué sabías y qué no sabías en el momento de decidir?
+
+[Completar]
+
+**Decisión**
+> La decisión tomada, enunciada de forma clara y directa. "Decidimos usar X porque Y."
+
+[Completar]
+
+**Alternativas consideradas**
+
+| Alternativa | Ventajas | Desventajas | Por qué se descartó |
+|---|---|---|---|
+| [Opción A] | | | |
+| [Opción B] | | | |
+
+**Consecuencias positivas**
+- [Qué mejora o se habilita con esta decisión]
+- [Qué drivers o escenarios de calidad satisface]
+
+**Consecuencias negativas**
+- [Qué se complica o qué deuda introduce]
+- [Qué escenarios de calidad se ven afectados negativamente]
+
+**Revisión requerida si:** [Condición que haría que esta decisión deba revisarse — ej. "Si el volumen de transacciones supera 10k/día, esta decisión debe reevaluarse"]
+
+---
+
+### ADR-002 — [Título de la decisión]
+
+*(Repetir estructura)*
+
+---
+
+### ADR-003 — [Título de la decisión]
+
+*(Repetir estructura. Agregar ADR-004, ADR-005, etc. según las decisiones del proyecto)*
+
+---
+
+### ADR-004 — [Título de la decisión]
+
+*(Repetir estructura. Agregar ADR-004, ADR-005, etc. según las decisiones del proyecto)*
+
+---
+
 *Documento generado bajo el template estándar PSWE-04 — Universidad Cenfotec — Maestría Profesional en Ingeniería del Software*
