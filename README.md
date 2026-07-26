@@ -2,7 +2,7 @@
 
 > **Plataforma Inteligente Distribuida de Monitoreo y Asistencia para Adultos Mayores**
 
-![Estado](https://img.shields.io/badge/estado-Avance%201%20(S07)-blue)
+![Estado](https://img.shields.io/badge/estado-Avance%202%20(S11)-blue)
 ![Curso](https://img.shields.io/badge/curso-PSWE--04-blue)
 ![Universidad](https://img.shields.io/badge/Universidad-Cenfotec-006341)
 ![Versión](https://img.shields.io/badge/versión-0.2-lightgrey)
@@ -41,8 +41,8 @@ SeniorCareHub es una plataforma **IoT distribuida** de monitoreo y asistencia pa
 | Hito | Semana | Versión | Estado | Documento |
 |---|---|---|---|---|
 | **Propuesta** | S03 | 0.1 | Aprobado | [📄 Propuesta S03](./docs/s03-propuesta.md) |
-| **Avance 1** | S07 | 0.2 | En revisión | [📄 Documento de Diseño](./docs/PSWE04_SeniorCareHub_Documento_Proyecto.md) |
-| **Avance 2** | S11 | 0.3 | Pendiente | — |
+| **Avance 1** | S07 | 0.2 | Aprobado | [📄 Documento de Diseño](./docs/PSWE04_SeniorCareHub_Documento_Proyecto.md) |
+| **Avance 2** | S11 | 0.3 | En revisión | [📄 Documento de Diseño](./docs/PSWE04_SeniorCareHub_Documento_Proyecto.md) |
 | **Entrega Final** | S14 | 1.0 | Pendiente | — |
 
 ---
