@@ -194,25 +194,25 @@ Para los fines de este proyecto se identificaron 5 atributos de calidad y sus re
 
 | Elemento | Descripción |
 |-----------|-------------|
-| **Fuente del estímulo** | Wearable asociado a un adulto mayor |
-| **Estímulo** | Se detecta un evento crítico de caída o inactividad prolongada |
-| **Entorno** | Operación normal con múltiples eventos procesándose simultáneamente |
-| **Artefacto** | Pipeline de procesamiento de eventos y subsistema de notificaciones |
-| **Respuesta** | El sistema clasifica el evento y envía la alerta a los destinatarios configurados |
-| **Medida de respuesta** | Desde la recepción del evento crítico hasta el envío de la primera notificación transcurren ≤ 5 segundos en el percentil 95 |
+| **Fuente del estímulo** | Wearable simulado asociado a un adulto mayor |
+| **Estímulo** | Emite un evento de caída o inactividad que cumple los criterios configurados para ser evaluado como crítico |
+| **Entorno** | Operación normal con hasta 1 000 adultos mayores monitoreados, una carga sostenida de 20 eventos por segundo y picos de hasta 100 eventos por segundo durante 5 minutos, los proveedores externos se encuentran disponibles |
+| **Artefacto** | Servicio de Ingesta, Bus de Mensajería, Motor de Reglas y Servicio de Notificaciones |
+| **Respuesta** | El sistema valida y conserva el evento, evalúa las reglas del perfil, genera la alerta y despacha la primera notificación al canal de mayor prioridad |
+| **Medida de respuesta** | El tiempo entre la aceptación durable del evento y la aceptación de la solicitud por el primer proveedor de notificación es ≤ 5 segundos en el percentil 95 y ≤ 8 segundos en el percentil 99 |
 
-**Tensión con:** QS-03 (Resiliencia), debido a que reintentos y mecanismos de recuperación incrementan la latencia. También tensiona con QS-05 (Modificabilidad), porque reglas más flexibles pueden aumentar el tiempo de procesamiento.
+**Tensión con:** QS-03 (Resiliencia), debido a que reintentos y mecanismos de recuperación incrementan la latencia. También tensiona con QS-05 (Modificabilidad), porque reglas más flexibles pueden aumentar el tiempo de procesamiento y QS-05, porque la evaluación dinámica de reglas puede requerir más procesamiento que una lógica fija.
 
 ## Escenario QS-03 — Tolerancia a fallos / Resiliencia
 
 | Elemento | Descripción |
 |-----------|-------------|
-| **Fuente del estímulo** | Servicio externo de notificaciones |
-| **Estímulo** | El proveedor principal de envío de SMS presenta una falla |
-| **Entorno** | Operación normal |
-| **Artefacto** | Subsistema de notificaciones |
-| **Respuesta** | El sistema continúa intentando la entrega utilizando otros canales disponibles y registra la incidencia |
-| **Medida de respuesta** | El sistema garantiza que ninguna alerta crítica se pierda y logra la entrega mediante al menos un canal disponible en menos de 10 segundos |
+| **Fuente del estímulo** | Proveedor externo de notificaciones o fallo de una instancia interna |
+| **Estímulo** | El proveedor principal de SMS deja de responder o una instancia del Servicio de Notificaciones se reinicia durante el procesamiento |
+| **Entorno** | Operación con eventos críticos en tránsito, el perfil tiene al menos un canal alternativo configurado y el sistema procesa la carga de referencia |
+| **Artefacto** | Bus de Mensajería, Motor de Reglas, Servicio de Notificaciones y almacenes durables |
+| **Respuesta** | El sistema conserva la alerta, reintenta el procesamiento de manera idempotente, utiliza un canal alternativo cuando esté disponible y registra el fallo y el resultado de cada intento |
+| **Medida de respuesta** | Durante una prueba de inyección de fallos con al menos 1000 eventos críticos aceptados, el 100% debe quedar asociado a un estado durable y trazable: Delivered, PendingRetry, FallbackInProgress o DeadLetter. Deben existir 0 alertas sin correspondencia entre eventId, alertId y sus intentos de notificación. El primer intento por un canal alternativo debe comenzar en menos de 10 segundos en el percentil 95 |
 
 **Tensión con:** QS-02 (Rendimiento), porque los mecanismos de recuperación y reintentos agregan tiempo adicional.
 
@@ -220,27 +220,27 @@ Para los fines de este proyecto se identificaron 5 atributos de calidad y sus re
 
 | Elemento | Descripción |
 |-----------|-------------|
-| **Fuente del estímulo** | Usuario no autorizado |
-| **Estímulo** | Intento de acceso a información sensible como ubicación y estado de un adulto mayor sin permisos |
+| **Fuente del estímulo** | Usuario autenticado sin relación autorizada con el adulto mayor, usuario con un rol insuficiente o cliente con credenciales inválidas |
+| **Estímulo** | Intenta consultar o modificar ubicación, estado, historial, perfil de monitoreo o alertas de un adulto mayor para el cual no posee autorización |
 | **Entorno** | Operación normal |
-| **Artefacto** | Subsistema de autenticación y autorización |
+| **Artefacto** | API de Aplicación, subsistema de autenticación y autorización y bitácora de auditoría |
 | **Respuesta** | El sistema bloquea el acceso, se registra el intento y mantiene protegidos los datos sensibles |
-| **Medida de respuesta** | El 100 % de los accesos no autorizados son bloqueados y auditados |
+| **Medida de respuesta** | El 100 % de los casos incluidos en la suite de pruebas de autorización recibe una respuesta HTTP 401 o 403, según corresponda. Cada intento genera un registro consultable en menos de 5 segundos que contiene fecha y hora, identificador del actor, recurso objetivo, acción solicitada, decisión de autorización, motivo, dirección de origen y correlationId, sin almacenar el contenido sensible consultado |
 
-**Tensión con:** QS-01 (Disponibilidad), porque mecanismos de seguridad, auditoría y mantenimiento pueden impactar la continuidad del servicio.
+**Tensión con:** QS-01 (Disponibilidad) y QS-02 (Rendimiento), porque mecanismos de seguridad, auditoría y mantenimiento pueden impactar la continuidad del servicio.
 
 ## Escenario QS-05 — Modificabilidad
 
 | Elemento | Descripción |
 |-----------|-------------|
-| **Fuente del estímulo** | Administrador del sistema |
-| **Estímulo** | Se requiere agregar una nueva regla de detección o modificar los criterios de criticidad de un perfil de monitoreo |
-| **Entorno** | Operación normal con usuarios activos |
-| **Artefacto** | Motor de reglas y configuración de perfiles de monitoreo |
-| **Respuesta** | La nueva regla es incorporada y comienza a ser utilizada por el sistema sin interrumpir el servicio ni requerir redepliegues |
-| **Medida de respuesta** | La modificación entra en operación en menos de 10 minutos sin detener el sistema |
+| **Fuente del estímulo** | Administrador del sistema o cuidador autorizado |
+| **Estímulo** | Modifica los parámetros de una regla previamente soportada, como el tiempo máximo de inactividad, el radio de una zona segura, el nivel de criticidad, la ventana de confirmación o los canales y destinatarios habilitados |
+| **Entorno** | Operación normal con usuarios y dispositivos simulados activos |
+| **Artefacto** | API de Aplicación, configuración de perfiles, BD Operativa y Motor de Reglas |
+| **Respuesta** | El sistema valida la configuración, crea una nueva versión del perfil, registra quién realizó el cambio y hace que los eventos posteriores sean evaluados utilizando la versión actualizada |
+| **Medida de respuesta** | La nueva configuración está disponible para evaluación en menos de 10 minutos, sin recompilar ni redesplegar el Motor de Reglas y sin interrumpir la recepción de eventos. El siguiente evento procesado para ese perfil permite verificar mediante auditoría qué versión de la regla fue aplicada |
 
-**Tensión con:** QS-02 (Rendimiento), debido a que una mayor flexibilidad y configurabilidad puede incrementar el tiempo requerido para evaluar eventos y determinar su criticidad.
+**Tensión con:** QS-02 (Rendimiento), debido a que una mayor flexibilidad y configurabilidad puede incrementar el tiempo requerido para evaluar eventos y determinar su criticidad y QS-04 (Seguridad y privacidad), porque el versionado y la auditoría agregan almacenamiento y controles.
 
 ---
 
