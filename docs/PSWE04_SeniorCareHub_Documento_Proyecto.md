@@ -503,7 +503,7 @@ Las siguientes decisiones documentan los aspectos arquitectónicos que tienen ma
 Cada ADR indica explícitamente los drivers que origina la decisión y los escenarios de calidad que permiten validarla. De esta forma, las decisiones arquitectónicas no se presentan como elecciones tecnológicas aisladas, sino como respuestas concretas a los requerimientos prioritarios de SeniorCareHub.
 
 ### Resumen de decisiones
-Se documentaron cinco decisiones arquitectónicas significativas que afectan la estructura del pipeline crítico de SeniorCareHub, la configurabilidad del motor de reglas, el manejo de falsas alarmas, la confiabilidad de entrega de eventos y el desacoplamiento del envío de notificaciones. Cada ADR detalla el contexto, la decisión tomada, las alternativas evaluadas y sus consecuencias.
+Se documentaron cuatro decisiones arquitectónicas significativas que afectan la estructura del pipeline crítico de SeniorCareHub, la configurabilidad del motor de reglas, el manejo de falsas alarmas, la confiabilidad de entrega de eventos y el desacoplamiento del envío de notificaciones. Cada ADR detalla el contexto, la decisión tomada, las alternativas evaluadas y sus consecuencias.
 
 | ADR | Título | Estado | Drivers atendidos |
 |---|---|---|---|
@@ -572,7 +572,7 @@ El productor no dependerá de que el consumidor se encuentre disponible en el in
 #### Evidencia y validación
 
 - **Vista:** sección 7.2, vista de contenedores.
-- **Flujo:** procesamiento de un evento crítico en la sección 7.3.
+- **Flujo:** procesamiento de un evento crítico en la sección 10.1.4.
 - **Prueba prevista:** detener temporalmente el Motor de Reglas mientras el Servicio de Ingesta continúa recibiendo eventos.
 - **Resultado esperado:** los eventos permanecen disponibles en el intermediario y son procesados cuando el consumidor se recupera.
 
@@ -727,7 +727,7 @@ Una alerta confirmada deberá incluir una referencia a los eventos que la origin
 - Las métricas muestran que las reglas configurables no alcanzan la exactitud necesaria.
 
 ---
-### ADR-005: Desacoplar las notificaciones mediante canales configurables y adaptadores
+### ADR-004: Desacoplar las notificaciones mediante canales configurables y adaptadores
 
 | Campo | Detalle |
 |---|---|
