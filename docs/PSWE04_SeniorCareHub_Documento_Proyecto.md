@@ -495,4 +495,76 @@ La elección del estilo y la selección del producto concreto de mensajería se 
 
 ---
 
+# BLOQUE 5 — DISEÑO DETALLADO
+*Hito: Entrega final (S14)*
+
+---
+
+## 10. Diseño detallado de componentes
+
+### Componente 1 — Motor de reglas
+
+**Responsabilidad:** Analizar los eventos recibidos desde el Bus de Mensajería, evaluarlos de acuerdo con las reglas configurables y el perfil de monitoreo del adulto mayor asociado, determinar si representan una situación de riesgo, establecer su nivel de criticidad y generar una alerta cuando corresponda, aplicando mecanismos de confirmación, deduplicación e idempotencia para evitar falsas alarmas y el procesamiento repetido de un mismo evento.
+
+**Trazabilidad:** Soporta los casos de uso definidos en la Sección 1.4 relacionados con Monitorear múltiples adultos mayores, Recibir alertas de emergencia en tiempo real, Ajustar perfiles de monitoreo y Configurar reglas y parámetros generales de monitoreo. Asimismo, implementa los requerimientos funcionales RF-01 (Recepción y procesamiento de eventos), RF-02 (Evaluación mediante reglas configurables) y RF-05 (Aplicación de perfiles de monitoreo individuales). En la Vista de estructura interna presentada en la Sección 7.2, corresponde al Contenedor 5 – Motor de Reglas, responsable de consumir eventos desde el Bus de Mensajería, evaluarlos según las reglas y perfiles configurados, generar alertas y publicarlas nuevamente en el Bus de Mensajería.
+
+#### 10.1.1 Diagrama de clases de diseño
+
+El siguiente diagrama presenta el diseño interno del componente Motor de Reglas. Se muestran las principales clases, interfaces y relaciones de colaboración que lo conforman, así como la aplicación preliminar de los patrones de diseño Strategy, Factory, Repository y Adapter. La descripción detallada de estos patrones se desarrollará en la Sección 11 del documento, correspondiente al siguiente avance.
+
+El diseño se organiza alrededor de RuleProcessingService, responsable de coordinar la lógica del componente. El procesamiento inicia en EventMessageConsumer, que recibe los eventos desde el Bus de Mensajería y delega su procesamiento mediante la interfaz IRuleProcessingService. A partir de este punto, RuleProcessingService coordina la validación del evento, la consulta de perfiles y reglas, la evaluación mediante estrategias especializadas, la aplicación de mecanismos de confirmación y deduplicación, el almacenamiento de la alerta y su posterior publicación.
+
+![Diagrama de clases — Componente 1](../diagramas/clases-componente1.png)
+*Figura 3 — Diagrama de clases de diseño: Motor de reglas*
+> Para visualizar el diagrama con mayor nivel de detalle, consulte el archivo [clases-componente1.png](../diagramas/clases-componente1.png).
+
+#### 10.1.2 Contratos de interfaz
+
+| Método / Endpoint | Precondición | Postcondición | Excepciones |
+|---|---|---|---|
+| `ProcessAsync(event: MonitoringEvent): ProcessingResult` | El objeto MonitoringEvent debe contener la información mínima requerida para su procesamiento (identificador del evento, adulto mayor asociado, tipo de evento y fecha de ocurrencia). El componente debe encontrarse operativo y con acceso a los servicios requeridos para consultar perfiles, reglas y persistir alertas. | El evento ha sido procesado de acuerdo con las reglas y perfiles configurados. Cuando corresponde, la alerta ha sido generada, persistida y publicada. El método devuelve un objeto ProcessingResult que indica si el procesamiento fue exitoso, si se generó una alerta y el estado final de la operación. | Puede producir una excepción cuando el evento recibido es inválido, cuando no es posible acceder a los repositorios requeridos, cuando ocurre un error durante la publicación de la alerta o cuando se presenta una falla inesperada durante el procesamiento. |
+
+#### 10.1.3 Análisis de robustez
+
+El análisis de robustez permite verificar que el diseño del Motor de Reglas contempla los objetos necesarios para recibir información desde elementos externos, coordinar el procesamiento del evento y representar los datos utilizados durante la evaluación. La siguiente tabla clasifica los principales objetos que intervienen en el flujo de procesamiento de eventos como Boundary, Control o Entity. En este contexto, los repositorios se consideran objetos Boundary, ya que representan la interacción entre la lógica del componente y los mecanismos externos de persistencia.
+
+| Objeto | Tipo | Responsabilidad |
+|---|---|---|
+| EventMessageConsumer          | Boundary | Recibir los mensajes provenientes del Bus de Mensajería, transformarlos en objetos `MonitoringEvent` y delegar su procesamiento mediante `IRuleProcessingService`.                |
+| AzureServiceBusAlertPublisher | Boundary | Convertir las alertas generadas al formato requerido por el Bus de Mensajería y publicarlas.                                                                                                                 |
+| IMonitoringProfileRepository  | Boundary | Proporcionar acceso a la fuente de datos para consultar el perfil de monitoreo asociado al adulto mayor.                                                                          |
+| IMonitoringRuleRepository     | Boundary | Proporcionar acceso a las reglas activas que deben aplicarse durante la evaluación del evento.                                                                                    |
+| IAlertRepository              | Boundary | Proporcionar las operaciones necesarias para almacenar las alertas generadas por el componente.                                                                                   |
+| RuleProcessingService         | Control  | Coordinar el flujo completo de procesamiento, incluyendo validación, consulta de datos, evaluación de reglas, confirmación, deduplicación, persistencia y publicación de alertas. |
+| EventValidator                | Control  | Verificar que el evento recibido contenga la información mínima y válida requerida para continuar con el procesamiento.                                                           |
+| RuleEvaluatorFactory          | Control  | Seleccionar la estrategia de evaluación correspondiente según el tipo de regla configurada.                                                                                       |
+| FallRuleEvaluator             | Control  | Evaluar las reglas relacionadas con posibles caídas.                                                                                                                              |
+| InactivityRuleEvaluator       | Control  | Evaluar las reglas asociadas con periodos de inactividad.                                                                                                                         |
+| SafeZoneRuleEvaluator         | Control  | Evaluar si el adulto mayor se encuentra fuera de la zona segura configurada.                                                                                                      |
+| ConfirmationService           | Control  | Aplicar los criterios de confirmación establecidos para validar una situación de riesgo antes de generar una alerta.                                                                                          |
+| DeduplicationService          | Control  | Verificar si el evento o la alerta ya fueron procesados para evitar la generación de alertas duplicadas.                                                                                          |
+| IRuleEvaluator                | Control  | Evaluar un evento de acuerdo con una regla específica y generar el resultado correspondiente, indicando si se identificó una situación de riesgo y su nivel de criticidad.                                                                                          |
+| MonitoringEvent               | Entity   | Representar el evento de monitoreo recibido, incluyendo su identificador, tipo, fecha de ocurrencia y adulto mayor asociado.                                                      |
+| MonitoringProfile             | Entity   | Representar la configuración y los parámetros de monitoreo individuales del adulto mayor utilizados durante la evaluación de los eventos.                                                                                                           |
+| MonitoringRule                | Entity   | Representar las reglas configurables y las condiciones utilizadas para evaluar los eventos de monitoreo.                                                                            |
+| Alert                         | Entity   | Representar una alerta generada por el componente, incluyendo la información necesaria para su almacenamiento y publicación.                                                                        |
+| ProcessingResult              | Entity   | Representar el resultado del procesamiento de un evento, indicando el estado final de la operación.                                                                                                                      |
+| RuleEvaluationResult          | Entity   | Representar el resultado de la evaluación de una regla, indicando si se detectó una situación de riesgo y su nivel de criticidad.                                                                 |
+| ConfirmationResult            | Entity   | Representar el resultado del proceso de confirmación de una situación de riesgo, indicando si debe generarse una alerta.                                                                                                  |
+| EventValidationResult         | Entity   | Representar el resultado de la validación del evento recibido, indicando si cumple las condiciones necesarias para continuar su procesamiento.                                                                                                          |
+
+#### 10.1.4 Diagrama de secuencia — flujo principal
+
+El siguiente diagrama de secuencia representa el flujo principal de la interacción entre los principales objetos del componente Motor de Reglas, desde la recepción del evento hasta la generación, almacenamiento y publicación de una alerta cuando se detecta una situación de riesgo. El componente obtiene el perfil de monitoreo y las reglas activas asociadas, evalúa el evento mediante la estrategia correspondiente, confirma la situación detectada y verifica que no exista un procesamiento duplicado. Finalmente, genera la alerta, la almacena y la publica en el Bus de Mensajería.
+
+![Secuencia — Componente 1, flujo principal](../diagramas/secuencia-comp1-principal.png)
+*Figura 4 — Secuencia: Procesamiento de un evento con generación de alerta*
+> Para visualizar el diagrama con mayor nivel de detalle, consulte el archivo [clases-componente1.png](../diagramas/secuencia-comp1-principal.png).
+
+El siguiente diagrama de secuencia representa un camino de error en el que el evento recibido no cumple las condiciones mínimas requeridas para su procesamiento. Después de la validación inicial, el Motor de Reglas detiene el flujo y devuelve un resultado no exitoso, sin consultar el perfil de monitoreo, recuperar reglas, evaluar condiciones ni generar una alerta.
+
+![Secuencia — Componente 1, camino de error](../diagramas/secuencia-comp1-error.png)
+*Figura 5 — Secuencia: Evento inválido durante el procesamiento*
+> Para visualizar el diagrama con mayor nivel de detalle, consulte el archivo [clases-componente1.png](../diagramas/secuencia-comp1-error.png).
+---
 *Documento generado bajo el template estándar PSWE-04 — Universidad Cenfotec — Maestría Profesional en Ingeniería del Software*
