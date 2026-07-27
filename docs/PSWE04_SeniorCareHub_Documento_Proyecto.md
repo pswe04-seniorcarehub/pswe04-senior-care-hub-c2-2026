@@ -12,8 +12,8 @@
 | **URL del repositorio** | https://github.com/pswe04-seniorcarehub/pswe04-senior-care-hub-c2-2026.git |
 | **Docente** | Juan Mauricio Leandro Jimenez |
 | **Cuatrimestre** | 2026 — II Cuatrimestre |
-| **Versión del documento** | 0.2 — Avance 1(S07) |
-| **Fecha de última actualización** | 2026-06-24 |
+| **Versión del documento** | 0.3 — Avance 2(S11) |
+| **Fecha de última actualización** | 2026-07-26 |
 
 ---
 
@@ -23,6 +23,7 @@
 |---|---|---|---|---|
 | 0.1 | 2026-05-26 | Propuesta (S03) | Creación del documento inicial | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 | 0.2 | 2026-06-24 | Avance 1 (S07) | Desarrollo del contexto del sistema, alcance, usuarios, stakeholders, drivers arquitectónicos, escenarios de calidad y vista de contexto C4. | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
+| 0.3 | 2026-07-26 | Avance 2 (S11) | Incorporación de la vista de contenedores, estilo arquitectónico, análisis de alternativas, trade-offs, diagramas de comportamiento y ADRs. | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 
 ---
 
@@ -38,7 +39,7 @@
    - 7.1 [Vista de contexto](#71-vista-de-contexto)
    - 7.2 [Vista de contenedores](#72-vista-de-contenedores)
 8. [Estilo arquitectónico](#8-estilo-arquitectónico)
-
+9. [Registro de decisiones — ADRs](#9-registro-de-decisiones--adrs)
 ---
 
 # BLOQUE 1 — CONTEXTO Y PROBLEMA
@@ -177,7 +178,7 @@ Un escenario de calidad es una descripción concreta y medible de cómo el siste
 
 Para los fines de este proyecto se identificaron 5 atributos de calidad y sus respectivas tensiones cuando corresponden.
 
-## Escenario QS-01 — Disponibilidad
+### Escenario QS-01 — Disponibilidad
 
 | Elemento | Descripción |
 |-----------|-------------|
@@ -190,57 +191,57 @@ Para los fines de este proyecto se identificaron 5 atributos de calidad y sus re
 
 **Tensión con:** QS-04 (Seguridad y privacidad), porque mecanismos de autenticación, auditoría y mantenimiento pueden introducir indisponibilidad temporal.
 
-## Escenario QS-02 — Rendimiento
+### Escenario QS-02 — Rendimiento
 
 | Elemento | Descripción |
 |-----------|-------------|
-| **Fuente del estímulo** | Wearable asociado a un adulto mayor |
-| **Estímulo** | Se detecta un evento crítico de caída o inactividad prolongada |
-| **Entorno** | Operación normal con múltiples eventos procesándose simultáneamente |
-| **Artefacto** | Pipeline de procesamiento de eventos y subsistema de notificaciones |
-| **Respuesta** | El sistema clasifica el evento y envía la alerta a los destinatarios configurados |
-| **Medida de respuesta** | Desde la recepción del evento crítico hasta el envío de la primera notificación transcurren ≤ 5 segundos en el percentil 95 |
+| **Fuente del estímulo** | Wearable simulado asociado a un adulto mayor |
+| **Estímulo** | Emite un evento de caída o inactividad que cumple los criterios configurados para ser evaluado como crítico |
+| **Entorno** | Operación normal con hasta 1 000 adultos mayores monitoreados, una carga sostenida de 20 eventos por segundo y picos de hasta 100 eventos por segundo durante 5 minutos, los proveedores externos se encuentran disponibles |
+| **Artefacto** | Servicio de Ingesta, Bus de Mensajería, Motor de Reglas y Servicio de Notificaciones |
+| **Respuesta** | El sistema valida y conserva el evento, evalúa las reglas del perfil, genera la alerta y despacha la primera notificación al canal de mayor prioridad |
+| **Medida de respuesta** | El tiempo entre la aceptación durable del evento y la aceptación de la solicitud por el primer proveedor de notificación es ≤ 5 segundos en el percentil 95 y ≤ 8 segundos en el percentil 99 |
 
-**Tensión con:** QS-03 (Resiliencia), debido a que reintentos y mecanismos de recuperación incrementan la latencia. También tensiona con QS-05 (Modificabilidad), porque reglas más flexibles pueden aumentar el tiempo de procesamiento.
+**Tensión con:** QS-03 (Resiliencia), debido a que reintentos y mecanismos de recuperación incrementan la latencia. También tensiona con QS-05 (Modificabilidad), porque reglas más flexibles pueden aumentar el tiempo de procesamiento y QS-05, porque la evaluación dinámica de reglas puede requerir más procesamiento que una lógica fija.
 
-## Escenario QS-03 — Tolerancia a fallos / Resiliencia
+### Escenario QS-03 — Tolerancia a fallos / Resiliencia
 
 | Elemento | Descripción |
 |-----------|-------------|
-| **Fuente del estímulo** | Servicio externo de notificaciones |
-| **Estímulo** | El proveedor principal de envío de SMS presenta una falla |
-| **Entorno** | Operación normal |
-| **Artefacto** | Subsistema de notificaciones |
-| **Respuesta** | El sistema continúa intentando la entrega utilizando otros canales disponibles y registra la incidencia |
-| **Medida de respuesta** | El sistema garantiza que ninguna alerta crítica se pierda y logra la entrega mediante al menos un canal disponible en menos de 10 segundos |
+| **Fuente del estímulo** | Proveedor externo de notificaciones o fallo de una instancia interna |
+| **Estímulo** | El proveedor principal de SMS deja de responder o una instancia del Servicio de Notificaciones se reinicia durante el procesamiento |
+| **Entorno** | Operación con eventos críticos en tránsito, el perfil tiene al menos un canal alternativo configurado y el sistema procesa la carga de referencia |
+| **Artefacto** | Bus de Mensajería, Motor de Reglas, Servicio de Notificaciones y almacenes durables |
+| **Respuesta** | El sistema conserva la alerta, reintenta el procesamiento de manera idempotente, utiliza un canal alternativo cuando esté disponible y registra el fallo y el resultado de cada intento |
+| **Medida de respuesta** | Durante una prueba de inyección de fallos con al menos 1000 eventos críticos aceptados, el 100% debe quedar asociado a un estado durable y trazable: Delivered, PendingRetry, FallbackInProgress o DeadLetter. Deben existir 0 alertas sin correspondencia entre eventId, alertId y sus intentos de notificación. El primer intento por un canal alternativo debe comenzar en menos de 10 segundos en el percentil 95 |
 
 **Tensión con:** QS-02 (Rendimiento), porque los mecanismos de recuperación y reintentos agregan tiempo adicional.
 
-## Escenario QS-04 — Seguridad y privacidad
+### Escenario QS-04 — Seguridad y privacidad
 
 | Elemento | Descripción |
 |-----------|-------------|
-| **Fuente del estímulo** | Usuario no autorizado |
-| **Estímulo** | Intento de acceso a información sensible como ubicación y estado de un adulto mayor sin permisos |
+| **Fuente del estímulo** | Usuario autenticado sin relación autorizada con el adulto mayor, usuario con un rol insuficiente o cliente con credenciales inválidas |
+| **Estímulo** | Intenta consultar o modificar ubicación, estado, historial, perfil de monitoreo o alertas de un adulto mayor para el cual no posee autorización |
 | **Entorno** | Operación normal |
-| **Artefacto** | Subsistema de autenticación y autorización |
+| **Artefacto** | API de Aplicación, subsistema de autenticación y autorización y bitácora de auditoría |
 | **Respuesta** | El sistema bloquea el acceso, se registra el intento y mantiene protegidos los datos sensibles |
-| **Medida de respuesta** | El 100 % de los accesos no autorizados son bloqueados y auditados |
+| **Medida de respuesta** | El 100 % de los casos incluidos en la suite de pruebas de autorización recibe una respuesta HTTP 401 o 403, según corresponda. Cada intento genera un registro consultable en menos de 5 segundos que contiene fecha y hora, identificador del actor, recurso objetivo, acción solicitada, decisión de autorización, motivo, dirección de origen y correlationId, sin almacenar el contenido sensible consultado |
 
-**Tensión con:** QS-01 (Disponibilidad), porque mecanismos de seguridad, auditoría y mantenimiento pueden impactar la continuidad del servicio.
+**Tensión con:** QS-01 (Disponibilidad) y QS-02 (Rendimiento), porque mecanismos de seguridad, auditoría y mantenimiento pueden impactar la continuidad del servicio.
 
-## Escenario QS-05 — Modificabilidad
+### Escenario QS-05 — Modificabilidad
 
 | Elemento | Descripción |
 |-----------|-------------|
-| **Fuente del estímulo** | Administrador del sistema |
-| **Estímulo** | Se requiere agregar una nueva regla de detección o modificar los criterios de criticidad de un perfil de monitoreo |
-| **Entorno** | Operación normal con usuarios activos |
-| **Artefacto** | Motor de reglas y configuración de perfiles de monitoreo |
-| **Respuesta** | La nueva regla es incorporada y comienza a ser utilizada por el sistema sin interrumpir el servicio ni requerir redepliegues |
-| **Medida de respuesta** | La modificación entra en operación en menos de 10 minutos sin detener el sistema |
+| **Fuente del estímulo** | Administrador del sistema o cuidador autorizado |
+| **Estímulo** | Modifica los parámetros de una regla previamente soportada, como el tiempo máximo de inactividad, el radio de una zona segura, el nivel de criticidad, la ventana de confirmación o los canales y destinatarios habilitados |
+| **Entorno** | Operación normal con usuarios y dispositivos simulados activos |
+| **Artefacto** | API de Aplicación, configuración de perfiles, BD Operativa y Motor de Reglas |
+| **Respuesta** | El sistema valida la configuración, crea una nueva versión del perfil, registra quién realizó el cambio y hace que los eventos posteriores sean evaluados utilizando la versión actualizada |
+| **Medida de respuesta** | La nueva configuración está disponible para evaluación en menos de 10 minutos, sin recompilar ni redesplegar el Motor de Reglas y sin interrumpir la recepción de eventos. El siguiente evento procesado para ese perfil permite verificar mediante auditoría qué versión de la regla fue aplicada |
 
-**Tensión con:** QS-02 (Rendimiento), debido a que una mayor flexibilidad y configurabilidad puede incrementar el tiempo requerido para evaluar eventos y determinar su criticidad.
+**Tensión con:** QS-02 (Rendimiento), debido a que una mayor flexibilidad y configurabilidad puede incrementar el tiempo requerido para evaluar eventos y determinar su criticidad y QS-04 (Seguridad y privacidad), porque el versionado y la auditoría agregan almacenamiento y controles.
 
 ---
 
@@ -494,6 +495,602 @@ La misma descomposición en servicios de la solución adoptada, pero comunicados
 La elección del estilo y la selección del producto concreto de mensajería se registran como decisiones formales en la carpeta `/decisiones`, con el detalle de contexto, alternativas y consecuencias correspondiente a cada una.
 
 ---
+
+## 9. Registro de decisiones — ADRs
+Las siguientes decisiones documentan los aspectos arquitectónicos que tienen mayor impacto sobre el cumplimiento de los drivers funcionales, atributos de calidad y restricciones identificados en las secciones 3 y 4.
+
+Cada ADR indica explícitamente los drivers que origina la decisión y los escenarios de calidad que permiten validarla. De esta forma, las decisiones arquitectónicas no se presentan como elecciones tecnológicas aisladas, sino como respuestas concretas a los requerimientos prioritarios de SeniorCareHub.
+
+### Resumen de decisiones
+Se documentaron cinco decisiones arquitectónicas significativas que afectan la estructura del pipeline crítico de SeniorCareHub, la configurabilidad del motor de reglas, el manejo de falsas alarmas, la confiabilidad de entrega de eventos y el desacoplamiento del envío de notificaciones. Cada ADR detalla el contexto, la decisión tomada, las alternativas evaluadas y sus consecuencias.
+
+| ADR | Título | Estado | Drivers atendidos |
+|---|---|---|---|
+| [ADR-001](/decisiones/ADR-001-separar-ingesta-evaluacion-alertas-notificaciones.md) | Separar ingesta, evaluación, alertas y notificaciones mediante eventos | Propuesta | RF-01, RF-03, QA-01, QA-02, QA-03, REST-01 |
+| [ADR-002](/decisiones/ADR-002-motor-reglas-configurable-perfiles-versionados.md) | Implementar un motor de reglas configurable y perfiles versionados | Propuesta | RF-02, RF-05, QA-02, QA-05 |
+| [ADR-003](/decisiones/ADR-003-gestion-falsas-alarmas-correlacion-confirmacion.md) | Gestionar falsas alarmas mediante correlación, confirmación y deduplicación | Propuesta | RF-02, RF-05, QA-02, QA-03 |
+| [ADR-004](/decisiones/ADR-004-notificaciones-canales-configurables-adaptadores.md) | Desacoplar las notificaciones mediante canales configurables y adaptadores | Propuesta | RF-03, RF-05, QA-02, QA-05, REST-01 |
+
+---
+
+### ADR-001: Separar ingesta, evaluación, alertas y notificaciones mediante eventos
+
+| Campo | Detalle |
+|---|---|
+| **Estado** | Propuesta |
+| **Fecha** | 2026-07-25 |
+| **Autores** | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
+| **Drivers atendidos** | RF-01, RF-03, QA-01, QA-02, QA-03, REST-01 |
+| **Escenarios relacionados** | QS-01, QS-02, QS-03 |
+
+#### Contexto
+
+SeniorCareHub debe recibir continuamente eventos simulados de monitoreo, evaluarlos mediante reglas configurables, generar alertas cuando se confirma una situación crítica y despacharlas mediante proveedores externos.
+
+Estas actividades presentan características y ritmos distintos. La recepción de eventos debe continuar aunque el motor de reglas se encuentre temporalmente saturado, y la evaluación de eventos no debe detenerse por la indisponibilidad de un proveedor de SMS o correo electrónico.
+
+Una cadena de llamadas sincrónicas entre recepción, evaluación y notificación provocaría que el fallo de un componente se propagara al resto del pipeline. Además, obligaría a que todos los componentes estuvieran disponibles al mismo tiempo para poder procesar un evento.
+
+#### Decisión
+
+Se decide dividir el pipeline crítico en cuatro responsabilidades principales:
+
+- **Servicio de Ingesta**, responsable de validar y aceptar eventos.
+- **Motor de Reglas**, responsable de evaluar los eventos y determinar si deben generar una alerta.
+- **Gestión de Alertas**, responsable de registrar la alerta y controlar su estado.
+- **Servicio de Notificaciones**, responsable de seleccionar canales, invocar proveedores y registrar los intentos de entrega.
+
+La comunicación entre estas etapas se realizará de manera asíncrona mediante un intermediario de mensajería durable basado en publicación y suscripción.
+
+El productor no dependerá de que el consumidor se encuentre disponible en el instante en que se publica el evento. Los mensajes permanecerán almacenados hasta que puedan ser procesados o trasladados a una cola de mensajes fallidos.
+
+#### Alternativas consideradas
+
+| Alternativa | Ventajas | Desventajas | Motivo de descarte |
+|---|---|---|---|
+| Monolito con procesamiento sincrónico | Menor complejidad operativa y menor latencia interna | Un fallo en reglas o notificaciones afecta la recepción; los reintentos dependen del proceso | No satisface adecuadamente QA-01 y QA-03 |
+| Servicios separados mediante REST sincrónico | Permite desplegar servicios independientes | Acoplamiento temporal, propagación de fallos y necesidad de que todos los servicios estén disponibles | Mantiene los principales riesgos de pérdida e indisponibilidad |
+| Procesamiento orientado a eventos | Desacoplamiento temporal, aislamiento de fallos y almacenamiento durable | Mayor complejidad de despliegue, consistencia eventual y depuración distribuida | **Alternativa seleccionada** |
+
+#### Consecuencias
+
+**Positivas**
+- La ingesta puede continuar aunque el Motor de Reglas o el Servicio de Notificaciones estén temporalmente indisponibles.
+- Los eventos pueden conservarse y reprocesarse.
+- Los componentes pueden desplegarse y escalarse de forma independiente.
+- La integración con nuevos consumidores no requiere modificar al productor original.
+- Los fallos de proveedores externos quedan aislados del procesamiento central.
+
+**Negativas**
+- Se introduce infraestructura adicional de mensajería.
+- El sistema opera con consistencia eventual.
+- Es necesario propagar identificadores de correlación entre componentes.
+- La observabilidad y depuración requieren correlacionar registros distribuidos.
+- Los consumidores deben manejar mensajes duplicados.
+
+#### Evidencia y validación
+
+- **Vista:** sección 7.2, vista de contenedores.
+- **Flujo:** procesamiento de un evento crítico en la sección 7.3.
+- **Prueba prevista:** detener temporalmente el Motor de Reglas mientras el Servicio de Ingesta continúa recibiendo eventos.
+- **Resultado esperado:** los eventos permanecen disponibles en el intermediario y son procesados cuando el consumidor se recupera.
+
+#### Revisión requerida si
+
+- La latencia adicional del intermediario impide cumplir QS-02.
+- La operación del sistema no puede asumir la complejidad de una plataforma distribuida.
+- El volumen real de eventos resulta suficientemente pequeño y tolerante a fallos como para justificar una arquitectura más simple.
+
+---
+
+### ADR-002: Implementar un motor de reglas configurable y perfiles versionados
+
+| Campo | Detalle |
+|---|---|
+| **Estado** | Propuesta |
+| **Fecha** | 2026-07-25 |
+| **Autores** | Equipo Grupo 3 |
+| **Drivers atendidos** | RF-02, RF-05, QA-02, QA-05 |
+| **Escenarios relacionados** | QS-02, QS-05 |
+
+#### Contexto
+
+Los criterios que determinan si un evento representa una situación crítica varían entre adultos mayores. Por ejemplo, el tiempo máximo de inactividad, las zonas consideradas seguras, la criticidad de una caída y los destinatarios de una alerta pueden depender del perfil individual.
+
+Estas reglas deben poder modificarse durante la operación normal sin recompilar ni redesplegar el Motor de Reglas. Sin embargo, permitir reglas completamente arbitrarias aumentaría considerablemente la complejidad, los riesgos de seguridad y la dificultad para garantizar la latencia de procesamiento.
+
+#### Decisión
+
+Se decide implementar un Motor de Reglas que combine:
+
+- Un conjunto controlado de tipos de reglas soportadas.
+- Parámetros configurables almacenados en la BD Operativa.
+- Perfiles de monitoreo individuales.
+- Versionado de reglas y perfiles.
+- Validación previa de las configuraciones.
+- Evaluadores especializados detrás de una interfaz común.
+- Registro de la versión utilizada en cada evaluación.
+
+Los cambios sin redespliegue se limitarán a parámetros y combinaciones de reglas conocidas por el motor, tales como:
+
+- Tiempo máximo de inactividad.
+- Radio de una zona segura.
+- Ventana de confirmación.
+- Nivel de criticidad.
+- Número de eventos requeridos para confirmar una condición.
+- Canales y destinatarios asociados.
+
+La incorporación de un nuevo tipo de regla o algoritmo requerirá implementación, pruebas y despliegue de un nuevo evaluador.
+
+#### Alternativas consideradas
+
+| Alternativa | Ventajas | Desventajas | Motivo de descarte |
+|---|---|---|---|
+| Reglas codificadas directamente | Simplicidad y alto rendimiento | Cada cambio requiere modificar código y redesplegar | Incumple QA-05 |
+| Motor de reglas completamente dinámico o DSL arbitrario | Máxima flexibilidad | Mayor complejidad, riesgos de seguridad y dificultad de validación | Sobredimensionado para el alcance |
+| Tipos de reglas controlados con parámetros configurables | Equilibrio entre modificabilidad, control y rendimiento | Los nuevos algoritmos requieren despliegue | **Alternativa seleccionada** |
+
+#### Consecuencias
+
+**Positivas**
+- Los administradores pueden modificar parámetros sin intervención del equipo de desarrollo.
+- Cada adulto mayor puede tener un perfil distinto.
+- Las evaluaciones quedan asociadas a una versión concreta.
+- La validación de configuraciones reduce errores operativos.
+- Los evaluadores pueden extenderse sin modificar la ingesta ni las notificaciones.
+
+**Negativas**
+- Debe mantenerse compatibilidad con versiones anteriores de reglas.
+- El Motor de Reglas necesita mecanismos de caché o actualización de configuración.
+- Las reglas inválidas deben rechazarse antes de entrar en operación.
+- La flexibilidad introduce un costo adicional de evaluación.
+
+#### Evidencia y validación
+
+- **Componente detallado principal:** Motor de Reglas y Generación de Alertas.
+- **Patrón previsto:** Strategy para seleccionar el evaluador correspondiente al tipo de regla.
+- **Prueba prevista:** modificar el umbral de inactividad durante la operación y enviar eventos antes y después del cambio.
+- **Resultado esperado:** los eventos posteriores utilizan la nueva versión sin redesplegar el servicio.
+
+#### Revisión requerida si
+
+- Los usuarios necesitan expresar reglas arbitrarias no cubiertas por los evaluadores disponibles.
+- El número de tipos de regla crece hasta hacer difícil mantener evaluadores independientes.
+- La evaluación dinámica impide cumplir la latencia de QS-02.
+
+---
+### ADR-003: Gestionar falsas alarmas mediante correlación, confirmación y deduplicación
+
+| Campo | Detalle |
+|---|---|
+| **Estado** | Propuesta |
+| **Fecha** | 2026-07-25 |
+| **Autores** | Equipo Grupo 3 |
+| **Drivers atendidos** | RF-02, RF-05, QA-02, QA-03 |
+| **Escenarios relacionados** | QS-02, QS-03, QS-05 |
+
+#### Contexto
+
+Generar una alerta por cada evento recibido podría producir notificaciones duplicadas o falsas alarmas. Por ejemplo, múltiples eventos de movimiento pueden representar una misma caída, y una pérdida temporal de comunicación puede recuperarse antes de requerir intervención.
+
+No obstante, esperar demasiado tiempo para confirmar una condición reduce las falsas alarmas, pero incrementa la latencia de las alertas verdaderamente críticas.
+
+#### Decisión
+
+Se decide incorporar en el Motor de Reglas una etapa de confirmación configurable que considere:
+
+- Correlación de eventos relacionados.
+- Ventanas temporales de confirmación.
+- Deduplicación por adulto mayor, tipo de evento y período.
+- Estado temporal de evaluación por persona monitoreada.
+- Niveles de confianza o criticidad.
+- Políticas diferenciadas según el tipo de evento.
+
+Los eventos de criticidad inmediata podrán generar una alerta sin esperar una ventana adicional cuando la regla configurada así lo determine. Los eventos ambiguos podrán requerir confirmación mediante eventos posteriores o el cumplimiento de una duración mínima.
+
+Una alerta confirmada deberá incluir una referencia a los eventos que la originaron y a la versión de reglas utilizada.
+
+#### Alternativas consideradas
+
+| Alternativa | Ventajas | Desventajas | Motivo de descarte |
+|---|---|---|---|
+| Alertar por cada evento individual | Mínima latencia y lógica sencilla | Fatiga de alarmas, duplicados y falsas alertas | No atiende adecuadamente el problema central |
+| Confirmación manual antes de notificar | Reduce alertas incorrectas | Requiere supervisión humana permanente y puede retrasar emergencias | No satisface QS-02 |
+| Correlación y confirmación configurable | Equilibra latencia y reducción de falsas alarmas | Requiere estado temporal y aumenta complejidad | **Alternativa seleccionada** |
+
+#### Consecuencias
+
+**Positivas**
+- Disminuye la generación de notificaciones duplicadas.
+- Permite adaptar la confirmación a la criticidad del evento.
+- Mejora la trazabilidad entre eventos y alertas.
+- Reduce el riesgo de fatiga de alarmas para cuidadores y familiares.
+
+**Negativas**
+- Mantener estado temporal incrementa la complejidad del Motor de Reglas.
+- Una ventana de confirmación excesiva puede retrasar alertas reales.
+- Es necesario definir cómo recuperar el estado después de un reinicio.
+- Se requieren métricas para evaluar falsos positivos y falsos negativos.
+
+#### Evidencia y validación
+
+- **Componente:** Motor de Reglas y Generación de Alertas.
+- **Flujo de comportamiento:** correlación de eventos y confirmación de alerta.
+- **Prueba prevista:** simular eventos duplicados, pérdida breve de comunicación y una caída confirmada.
+- **Resultado esperado:** los duplicados producen una única alerta; el evento transitorio no genera una alerta crítica; la caída confirmada respeta la meta de latencia.
+
+#### Revisión requerida si
+
+- Las ventanas de confirmación provocan incumplimientos repetidos de QS-02.
+- El dominio requiere modelos probabilísticos o aprendizaje automático para reducir falsas alarmas.
+- Las métricas muestran que las reglas configurables no alcanzan la exactitud necesaria.
+
+---
+### ADR-005: Desacoplar las notificaciones mediante canales configurables y adaptadores
+
+| Campo | Detalle |
+|---|---|
+| **Estado** | Propuesta |
+| **Fecha** | 2026-07-25 |
+| **Autores** | Equipo Grupo 3 |
+| **Drivers atendidos** | RF-03, RF-05, QA-02, QA-05, REST-01 |
+| **Escenarios relacionados** | QS-02, QS-05 |
+
+#### Contexto
+
+SeniorCareHub debe notificar a familiares y cuidadores mediante distintos canales, como SMS, correo electrónico o mensajería. Los proveedores pueden cambiar, utilizar contratos diferentes o no estar disponibles en todos los entornos.
+
+Acoplar el Motor de Reglas directamente a un proveedor dificultaría incorporar nuevos canales y haría que los cambios de integración afectaran la lógica de detección.
+
+#### Decisión
+
+Se decide implementar un Servicio de Notificaciones independiente que:
+
+- Reciba alertas confirmadas.
+- Consulte el perfil de notificación.
+- Resuelva destinatarios y canales.
+- Ordene los canales según prioridad.
+- Seleccione un adaptador compatible con cada canal.
+- Registre cada intento y resultado de entrega.
+- Permita incorporar nuevos adaptadores sin modificar el Motor de Reglas.
+
+Cada proveedor externo se ubicará detrás de una interfaz interna estable. La selección de canales y proveedores se determinará mediante configuración.
+
+#### Alternativas consideradas
+
+| Alternativa | Ventajas | Desventajas | Motivo de descarte |
+|---|---|---|---|
+| Integrar proveedores dentro del Motor de Reglas | Menos componentes | Alto acoplamiento y propagación de fallos | Contradice RF-03 y QA-05 |
+| Un servicio independiente por proveedor | Máximo aislamiento | Mayor costo operativo y duplicación de lógica | Complejidad innecesaria para el alcance |
+| Servicio multicanal con adaptadores | Aislamiento, reutilización y extensibilidad | El servicio concentra coordinación de varios canales | **Alternativa seleccionada** |
+
+#### Consecuencias
+
+**Positivas**
+- Los cambios de proveedor no afectan la detección de eventos.
+- Pueden agregarse nuevos canales mediante adaptadores.
+- Las preferencias se administran por perfil.
+- La lógica común de seguimiento y auditoría se mantiene centralizada.
+
+**Negativas**
+- El Servicio de Notificaciones puede convertirse en un componente complejo.
+- Deben normalizarse respuestas diferentes de proveedores.
+- Los proveedores pueden tener límites y semánticas de entrega distintas.
+- La configuración de prioridad debe validarse.
+
+#### Evidencia y validación
+
+- **Patrones previstos:** Adapter para proveedores y Strategy para selección de canal.
+- **Prueba prevista:** incorporar un proveedor simulado nuevo sin modificar el Motor de Reglas.
+- **Resultado esperado:** el nuevo adaptador puede seleccionarse mediante configuración.
+
+#### Revisión requerida si
+
+- La cantidad de canales o el volumen de notificaciones requiere separar cada canal en un servicio independiente.
+- Un proveedor exige un modelo de integración incompatible con la interfaz común.
+- Se requiere enviar simultáneamente por todos los canales en lugar de utilizar prioridad.
+
+
+---
+
+
+## 9. Registro de decisiones — ADRs
+Las siguientes decisiones documentan los aspectos arquitectónicos que tienen mayor impacto sobre el cumplimiento de los drivers funcionales, atributos de calidad y restricciones identificados en las secciones 3 y 4.
+
+Cada ADR indica explícitamente los drivers que origina la decisión y los escenarios de calidad que permiten validarla. De esta forma, las decisiones arquitectónicas no se presentan como elecciones tecnológicas aisladas, sino como respuestas concretas a los requerimientos prioritarios de SeniorCareHub.
+
+### Resumen de decisiones
+Se documentaron cinco decisiones arquitectónicas significativas que afectan la estructura del pipeline crítico de SeniorCareHub, la configurabilidad del motor de reglas, el manejo de falsas alarmas, la confiabilidad de entrega de eventos y el desacoplamiento del envío de notificaciones. Cada ADR detalla el contexto, la decisión tomada, las alternativas evaluadas y sus consecuencias.
+
+| ADR | Título | Estado | Drivers atendidos |
+|---|---|---|---|
+| [ADR-001](/decisiones/ADR-001-separar-ingesta-evaluacion-alertas-notificaciones.md) | Separar ingesta, evaluación, alertas y notificaciones mediante eventos | Propuesta | RF-01, RF-03, QA-01, QA-02, QA-03, REST-01 |
+| [ADR-002](/decisiones/ADR-002-motor-reglas-configurable-perfiles-versionados.md) | Implementar un motor de reglas configurable y perfiles versionados | Propuesta | RF-02, RF-05, QA-02, QA-05 |
+| [ADR-003](/decisiones/ADR-003-gestion-falsas-alarmas-correlacion-confirmacion.md) | Gestionar falsas alarmas mediante correlación, confirmación y deduplicación | Propuesta | RF-02, RF-05, QA-02, QA-03 |
+| [ADR-004](/decisiones/ADR-004-notificaciones-canales-configurables-adaptadores.md) | Desacoplar las notificaciones mediante canales configurables y adaptadores | Propuesta | RF-03, RF-05, QA-02, QA-05, REST-01 |
+
+---
+
+### ADR-001: Separar ingesta, evaluación, alertas y notificaciones mediante eventos
+
+| Campo | Detalle |
+|---|---|
+| **Estado** | Propuesta |
+| **Fecha** | 2026-07-25 |
+| **Autores** | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
+| **Drivers atendidos** | RF-01, RF-03, QA-01, QA-02, QA-03, REST-01 |
+| **Escenarios relacionados** | QS-01, QS-02, QS-03 |
+
+#### Contexto
+
+SeniorCareHub debe recibir continuamente eventos simulados de monitoreo, evaluarlos mediante reglas configurables, generar alertas cuando se confirma una situación crítica y despacharlas mediante proveedores externos.
+
+Estas actividades presentan características y ritmos distintos. La recepción de eventos debe continuar aunque el motor de reglas se encuentre temporalmente saturado, y la evaluación de eventos no debe detenerse por la indisponibilidad de un proveedor de SMS o correo electrónico.
+
+Una cadena de llamadas sincrónicas entre recepción, evaluación y notificación provocaría que el fallo de un componente se propagara al resto del pipeline. Además, obligaría a que todos los componentes estuvieran disponibles al mismo tiempo para poder procesar un evento.
+
+#### Decisión
+
+Se decide dividir el pipeline crítico en cuatro responsabilidades principales:
+
+- **Servicio de Ingesta**, responsable de validar y aceptar eventos.
+- **Motor de Reglas**, responsable de evaluar los eventos y determinar si deben generar una alerta.
+- **Gestión de Alertas**, responsable de registrar la alerta y controlar su estado.
+- **Servicio de Notificaciones**, responsable de seleccionar canales, invocar proveedores y registrar los intentos de entrega.
+
+La comunicación entre estas etapas se realizará de manera asíncrona mediante un intermediario de mensajería durable basado en publicación y suscripción.
+
+El productor no dependerá de que el consumidor se encuentre disponible en el instante en que se publica el evento. Los mensajes permanecerán almacenados hasta que puedan ser procesados o trasladados a una cola de mensajes fallidos.
+
+#### Alternativas consideradas
+
+| Alternativa | Ventajas | Desventajas | Motivo de descarte |
+|---|---|---|---|
+| Monolito con procesamiento sincrónico | Menor complejidad operativa y menor latencia interna | Un fallo en reglas o notificaciones afecta la recepción; los reintentos dependen del proceso | No satisface adecuadamente QA-01 y QA-03 |
+| Servicios separados mediante REST sincrónico | Permite desplegar servicios independientes | Acoplamiento temporal, propagación de fallos y necesidad de que todos los servicios estén disponibles | Mantiene los principales riesgos de pérdida e indisponibilidad |
+| Procesamiento orientado a eventos | Desacoplamiento temporal, aislamiento de fallos y almacenamiento durable | Mayor complejidad de despliegue, consistencia eventual y depuración distribuida | **Alternativa seleccionada** |
+
+#### Consecuencias
+
+**Positivas**
+- La ingesta puede continuar aunque el Motor de Reglas o el Servicio de Notificaciones estén temporalmente indisponibles.
+- Los eventos pueden conservarse y reprocesarse.
+- Los componentes pueden desplegarse y escalarse de forma independiente.
+- La integración con nuevos consumidores no requiere modificar al productor original.
+- Los fallos de proveedores externos quedan aislados del procesamiento central.
+
+**Negativas**
+- Se introduce infraestructura adicional de mensajería.
+- El sistema opera con consistencia eventual.
+- Es necesario propagar identificadores de correlación entre componentes.
+- La observabilidad y depuración requieren correlacionar registros distribuidos.
+- Los consumidores deben manejar mensajes duplicados.
+
+#### Evidencia y validación
+
+- **Vista:** sección 7.2, vista de contenedores.
+- **Flujo:** procesamiento de un evento crítico en la sección 7.3.
+- **Prueba prevista:** detener temporalmente el Motor de Reglas mientras el Servicio de Ingesta continúa recibiendo eventos.
+- **Resultado esperado:** los eventos permanecen disponibles en el intermediario y son procesados cuando el consumidor se recupera.
+
+#### Revisión requerida si
+
+- La latencia adicional del intermediario impide cumplir QS-02.
+- La operación del sistema no puede asumir la complejidad de una plataforma distribuida.
+- El volumen real de eventos resulta suficientemente pequeño y tolerante a fallos como para justificar una arquitectura más simple.
+
+---
+
+### ADR-002: Implementar un motor de reglas configurable y perfiles versionados
+
+| Campo | Detalle |
+|---|---|
+| **Estado** | Propuesta |
+| **Fecha** | 2026-07-25 |
+| **Autores** | Equipo Grupo 3 |
+| **Drivers atendidos** | RF-02, RF-05, QA-02, QA-05 |
+| **Escenarios relacionados** | QS-02, QS-05 |
+
+#### Contexto
+
+Los criterios que determinan si un evento representa una situación crítica varían entre adultos mayores. Por ejemplo, el tiempo máximo de inactividad, las zonas consideradas seguras, la criticidad de una caída y los destinatarios de una alerta pueden depender del perfil individual.
+
+Estas reglas deben poder modificarse durante la operación normal sin recompilar ni redesplegar el Motor de Reglas. Sin embargo, permitir reglas completamente arbitrarias aumentaría considerablemente la complejidad, los riesgos de seguridad y la dificultad para garantizar la latencia de procesamiento.
+
+#### Decisión
+
+Se decide implementar un Motor de Reglas que combine:
+
+- Un conjunto controlado de tipos de reglas soportadas.
+- Parámetros configurables almacenados en la BD Operativa.
+- Perfiles de monitoreo individuales.
+- Versionado de reglas y perfiles.
+- Validación previa de las configuraciones.
+- Evaluadores especializados detrás de una interfaz común.
+- Registro de la versión utilizada en cada evaluación.
+
+Los cambios sin redespliegue se limitarán a parámetros y combinaciones de reglas conocidas por el motor, tales como:
+
+- Tiempo máximo de inactividad.
+- Radio de una zona segura.
+- Ventana de confirmación.
+- Nivel de criticidad.
+- Número de eventos requeridos para confirmar una condición.
+- Canales y destinatarios asociados.
+
+La incorporación de un nuevo tipo de regla o algoritmo requerirá implementación, pruebas y despliegue de un nuevo evaluador.
+
+#### Alternativas consideradas
+
+| Alternativa | Ventajas | Desventajas | Motivo de descarte |
+|---|---|---|---|
+| Reglas codificadas directamente | Simplicidad y alto rendimiento | Cada cambio requiere modificar código y redesplegar | Incumple QA-05 |
+| Motor de reglas completamente dinámico o DSL arbitrario | Máxima flexibilidad | Mayor complejidad, riesgos de seguridad y dificultad de validación | Sobredimensionado para el alcance |
+| Tipos de reglas controlados con parámetros configurables | Equilibrio entre modificabilidad, control y rendimiento | Los nuevos algoritmos requieren despliegue | **Alternativa seleccionada** |
+
+#### Consecuencias
+
+**Positivas**
+- Los administradores pueden modificar parámetros sin intervención del equipo de desarrollo.
+- Cada adulto mayor puede tener un perfil distinto.
+- Las evaluaciones quedan asociadas a una versión concreta.
+- La validación de configuraciones reduce errores operativos.
+- Los evaluadores pueden extenderse sin modificar la ingesta ni las notificaciones.
+
+**Negativas**
+- Debe mantenerse compatibilidad con versiones anteriores de reglas.
+- El Motor de Reglas necesita mecanismos de caché o actualización de configuración.
+- Las reglas inválidas deben rechazarse antes de entrar en operación.
+- La flexibilidad introduce un costo adicional de evaluación.
+
+#### Evidencia y validación
+
+- **Componente detallado principal:** Motor de Reglas y Generación de Alertas.
+- **Patrón previsto:** Strategy para seleccionar el evaluador correspondiente al tipo de regla.
+- **Prueba prevista:** modificar el umbral de inactividad durante la operación y enviar eventos antes y después del cambio.
+- **Resultado esperado:** los eventos posteriores utilizan la nueva versión sin redesplegar el servicio.
+
+#### Revisión requerida si
+
+- Los usuarios necesitan expresar reglas arbitrarias no cubiertas por los evaluadores disponibles.
+- El número de tipos de regla crece hasta hacer difícil mantener evaluadores independientes.
+- La evaluación dinámica impide cumplir la latencia de QS-02.
+
+---
+### ADR-003: Gestionar falsas alarmas mediante correlación, confirmación y deduplicación
+
+| Campo | Detalle |
+|---|---|
+| **Estado** | Propuesta |
+| **Fecha** | 2026-07-25 |
+| **Autores** | Equipo Grupo 3 |
+| **Drivers atendidos** | RF-02, RF-05, QA-02, QA-03 |
+| **Escenarios relacionados** | QS-02, QS-03, QS-05 |
+
+#### Contexto
+
+Generar una alerta por cada evento recibido podría producir notificaciones duplicadas o falsas alarmas. Por ejemplo, múltiples eventos de movimiento pueden representar una misma caída, y una pérdida temporal de comunicación puede recuperarse antes de requerir intervención.
+
+No obstante, esperar demasiado tiempo para confirmar una condición reduce las falsas alarmas, pero incrementa la latencia de las alertas verdaderamente críticas.
+
+#### Decisión
+
+Se decide incorporar en el Motor de Reglas una etapa de confirmación configurable que considere:
+
+- Correlación de eventos relacionados.
+- Ventanas temporales de confirmación.
+- Deduplicación por adulto mayor, tipo de evento y período.
+- Estado temporal de evaluación por persona monitoreada.
+- Niveles de confianza o criticidad.
+- Políticas diferenciadas según el tipo de evento.
+
+Los eventos de criticidad inmediata podrán generar una alerta sin esperar una ventana adicional cuando la regla configurada así lo determine. Los eventos ambiguos podrán requerir confirmación mediante eventos posteriores o el cumplimiento de una duración mínima.
+
+Una alerta confirmada deberá incluir una referencia a los eventos que la originaron y a la versión de reglas utilizada.
+
+#### Alternativas consideradas
+
+| Alternativa | Ventajas | Desventajas | Motivo de descarte |
+|---|---|---|---|
+| Alertar por cada evento individual | Mínima latencia y lógica sencilla | Fatiga de alarmas, duplicados y falsas alertas | No atiende adecuadamente el problema central |
+| Confirmación manual antes de notificar | Reduce alertas incorrectas | Requiere supervisión humana permanente y puede retrasar emergencias | No satisface QS-02 |
+| Correlación y confirmación configurable | Equilibra latencia y reducción de falsas alarmas | Requiere estado temporal y aumenta complejidad | **Alternativa seleccionada** |
+
+#### Consecuencias
+
+**Positivas**
+- Disminuye la generación de notificaciones duplicadas.
+- Permite adaptar la confirmación a la criticidad del evento.
+- Mejora la trazabilidad entre eventos y alertas.
+- Reduce el riesgo de fatiga de alarmas para cuidadores y familiares.
+
+**Negativas**
+- Mantener estado temporal incrementa la complejidad del Motor de Reglas.
+- Una ventana de confirmación excesiva puede retrasar alertas reales.
+- Es necesario definir cómo recuperar el estado después de un reinicio.
+- Se requieren métricas para evaluar falsos positivos y falsos negativos.
+
+#### Evidencia y validación
+
+- **Componente:** Motor de Reglas y Generación de Alertas.
+- **Flujo de comportamiento:** correlación de eventos y confirmación de alerta.
+- **Prueba prevista:** simular eventos duplicados, pérdida breve de comunicación y una caída confirmada.
+- **Resultado esperado:** los duplicados producen una única alerta; el evento transitorio no genera una alerta crítica; la caída confirmada respeta la meta de latencia.
+
+#### Revisión requerida si
+
+- Las ventanas de confirmación provocan incumplimientos repetidos de QS-02.
+- El dominio requiere modelos probabilísticos o aprendizaje automático para reducir falsas alarmas.
+- Las métricas muestran que las reglas configurables no alcanzan la exactitud necesaria.
+
+---
+### ADR-005: Desacoplar las notificaciones mediante canales configurables y adaptadores
+
+| Campo | Detalle |
+|---|---|
+| **Estado** | Propuesta |
+| **Fecha** | 2026-07-25 |
+| **Autores** | Equipo Grupo 3 |
+| **Drivers atendidos** | RF-03, RF-05, QA-02, QA-05, REST-01 |
+| **Escenarios relacionados** | QS-02, QS-05 |
+
+#### Contexto
+
+SeniorCareHub debe notificar a familiares y cuidadores mediante distintos canales, como SMS, correo electrónico o mensajería. Los proveedores pueden cambiar, utilizar contratos diferentes o no estar disponibles en todos los entornos.
+
+Acoplar el Motor de Reglas directamente a un proveedor dificultaría incorporar nuevos canales y haría que los cambios de integración afectaran la lógica de detección.
+
+#### Decisión
+
+Se decide implementar un Servicio de Notificaciones independiente que:
+
+- Reciba alertas confirmadas.
+- Consulte el perfil de notificación.
+- Resuelva destinatarios y canales.
+- Ordene los canales según prioridad.
+- Seleccione un adaptador compatible con cada canal.
+- Registre cada intento y resultado de entrega.
+- Permita incorporar nuevos adaptadores sin modificar el Motor de Reglas.
+
+Cada proveedor externo se ubicará detrás de una interfaz interna estable. La selección de canales y proveedores se determinará mediante configuración.
+
+#### Alternativas consideradas
+
+| Alternativa | Ventajas | Desventajas | Motivo de descarte |
+|---|---|---|---|
+| Integrar proveedores dentro del Motor de Reglas | Menos componentes | Alto acoplamiento y propagación de fallos | Contradice RF-03 y QA-05 |
+| Un servicio independiente por proveedor | Máximo aislamiento | Mayor costo operativo y duplicación de lógica | Complejidad innecesaria para el alcance |
+| Servicio multicanal con adaptadores | Aislamiento, reutilización y extensibilidad | El servicio concentra coordinación de varios canales | **Alternativa seleccionada** |
+
+#### Consecuencias
+
+**Positivas**
+- Los cambios de proveedor no afectan la detección de eventos.
+- Pueden agregarse nuevos canales mediante adaptadores.
+- Las preferencias se administran por perfil.
+- La lógica común de seguimiento y auditoría se mantiene centralizada.
+
+**Negativas**
+- El Servicio de Notificaciones puede convertirse en un componente complejo.
+- Deben normalizarse respuestas diferentes de proveedores.
+- Los proveedores pueden tener límites y semánticas de entrega distintas.
+- La configuración de prioridad debe validarse.
+
+#### Evidencia y validación
+
+- **Patrones previstos:** Adapter para proveedores y Strategy para selección de canal.
+- **Prueba prevista:** incorporar un proveedor simulado nuevo sin modificar el Motor de Reglas.
+- **Resultado esperado:** el nuevo adaptador puede seleccionarse mediante configuración.
+
+#### Revisión requerida si
+
+- La cantidad de canales o el volumen de notificaciones requiere separar cada canal en un servicio independiente.
+- Un proveedor exige un modelo de integración incompatible con la interfaz común.
+- Se requiere enviar simultáneamente por todos los canales en lugar de utilizar prioridad.
+
+
+---
+
 
 # BLOQUE 5 — DISEÑO DETALLADO
 *Hito: Entrega final (S14)*
