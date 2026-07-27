@@ -40,6 +40,7 @@
    - 7.2 [Vista de contenedores](#72-vista-de-contenedores)
 8. [Estilo arquitectónico](#8-estilo-arquitectónico)
 9. [Registro de decisiones — ADRs](#9-registro-de-decisiones--adrs)
+10. [Diseño detallado de componentes](#10-diseño-detallado-de-componentes)
 ---
 
 # BLOQUE 1 — CONTEXTO Y PROBLEMA
