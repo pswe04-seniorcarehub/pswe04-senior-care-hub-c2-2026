@@ -1,4 +1,4 @@
-# ADR-005: Desacoplar las notificaciones mediante canales configurables y adaptadores
+# ADR-004: Desacoplar las notificaciones mediante canales configurables y adaptadores
 
 | Campo | Detalle |
 |---|---|

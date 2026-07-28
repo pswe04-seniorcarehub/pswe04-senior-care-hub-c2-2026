@@ -21,8 +21,7 @@ Una cadena de llamadas sincrónicas entre recepción, evaluación y notificació
 Se decide dividir el pipeline crítico en cuatro responsabilidades principales:
 
 - **Servicio de Ingesta**, responsable de validar y aceptar eventos.
-- **Motor de Reglas**, responsable de evaluar los eventos y determinar si deben generar una alerta.
-- **Gestión de Alertas**, responsable de registrar la alerta y controlar su estado.
+- **Motor de Reglas**, responsable de evaluar los eventos y determinar si deben generar una alerta, responsable de registrar la alerta y controlar su estado.
 - **Servicio de Notificaciones**, responsable de seleccionar canales, invocar proveedores y registrar los intentos de entrega.
 
 La comunicación entre estas etapas se realizará de manera asíncrona mediante un intermediario de mensajería durable basado en publicación y suscripción.
@@ -56,7 +55,7 @@ El productor no dependerá de que el consumidor se encuentre disponible en el in
 ## Evidencia y validación
 
 - **Vista:** sección 7.2, vista de contenedores.
-- **Flujo:** procesamiento de un evento crítico en la sección 7.3.
+- **Flujo:** procesamiento de un evento crítico en la sección 10.1.4.
 - **Prueba prevista:** detener temporalmente el Motor de Reglas mientras el Servicio de Ingesta continúa recibiendo eventos.
 - **Resultado esperado:** los eventos permanecen disponibles en el intermediario y son procesados cuando el consumidor se recupera.
 

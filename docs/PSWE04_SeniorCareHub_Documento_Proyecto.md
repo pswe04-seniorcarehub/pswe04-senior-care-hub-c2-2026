@@ -435,6 +435,11 @@ Los cuatro actores (Adulto Mayor, Familiar, Cuidador Profesional y Administrador
 
 ---
 
+# BLOQUE 4 — DECISIONES ARQUITECTÓNICAS
+*Hito: Avance 2 (S11)*
+
+---
+
 ## 8. Estilo arquitectónico
 
 ### 8.1 Estilo seleccionado
@@ -537,8 +542,7 @@ Una cadena de llamadas sincrónicas entre recepción, evaluación y notificació
 Se decide dividir el pipeline crítico en cuatro responsabilidades principales:
 
 - **Servicio de Ingesta**, responsable de validar y aceptar eventos.
-- **Motor de Reglas**, responsable de evaluar los eventos y determinar si deben generar una alerta.
-- **Gestión de Alertas**, responsable de registrar la alerta y controlar su estado.
+- **Motor de Reglas**, responsable de evaluar los eventos y determinar si deben generar una alerta, responsable de registrar la alerta y controlar su estado.
 - **Servicio de Notificaciones**, responsable de seleccionar canales, invocar proveedores y registrar los intentos de entrega.
 
 La comunicación entre estas etapas se realizará de manera asíncrona mediante un intermediario de mensajería durable basado en publicación y suscripción.
