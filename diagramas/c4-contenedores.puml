@@ -1,0 +1,59 @@
+@startuml c4-contenedores-seniorcarehub
+' =====================================================================
+' SeniorCareHub - Vista de contenedores (C4 - Nivel 2)
+' PSWE-04 - Avance 2 (S11)
+' Render: PlantUML + extension C4-PlantUML (se incluye de forma remota)
+' =====================================================================
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Vista de contenedores (C4 - Nivel 2): SeniorCareHub
+
+' ---------------------- Actores ----------------------
+Person(adultoMayor, "Adulto Mayor", "Usuario monitoreado. Porta el wearable que genera los eventos y consulta su propio estado en el portal.")
+Person(familiar, "Familiar", "Recibe alertas y consulta el estado e historial del adulto mayor.")
+Person(cuidador, "Cuidador Profesional", "Monitorea a varios adultos mayores y gestiona incidentes.")
+Person(admin, "Administrador del Sistema", "Configura reglas de deteccion, usuarios y canales de notificacion.")
+
+' ---------------------- Sistemas externos ----------------------
+System_Ext(wearable, "Wearable (simulado)", "Emite eventos de movimiento, inactividad y ubicacion del adulto mayor.")
+System_Ext(notif, "Servicios de notificacion externos", "Proveedores de correo, SMS y mensajeria que entregan las alertas.")
+
+' ---------------------- Contenedores ----------------------
+System_Boundary(sch, "SeniorCareHub") {
+    Container(webapp, "App Web (dashboard)", "SPA React + TypeScript / Azure Static Web Apps", "Presenta estado e historial y permite gestionar reglas, perfiles y canales de notificacion.")
+    Container(api, "API de Aplicacion", "ASP.NET Core Web API / Azure App Service", "Autentica al usuario, aplica autorizacion por rol y expone consultas y operaciones de configuracion.")
+    Container(ingesta, "Servicio de Ingesta", "ASP.NET Core / Azure App Service", "Autentica el dispositivo, valida el evento, lo persiste y lo publica en el bus. No evalua reglas.")
+    ContainerQueue(bus, "Bus de Mensajeria", "Azure Service Bus Standard (topics + subscriptions)", "Transporte durable de eventos crudos y alertas confirmadas. Reintentos, DLQ, deteccion de duplicados y sesiones por adulto mayor.")
+    Container(reglas, "Motor de Reglas", ".NET Worker Service / Azure Container Apps", "Evalua las reglas configurables, aplica la ventana de confirmacion y la deduplicacion, y publica la alerta confirmada.")
+    Container(notificaciones, "Servicio de Notificaciones", ".NET Worker Service / Azure Container Apps", "Resuelve destinatarios y canales, invoca a los proveedores mediante adaptadores y registra el acuse de entrega.")
+    ContainerDb(bdop, "BD Operativa", "Azure Database for PostgreSQL Flexible Server", "Usuarios, perfiles, reglas, alertas y acuses. Fuente de verdad y bitacora de auditoria (REST-02).")
+    ContainerDb(bdev, "Almacen de Eventos", "Azure Database for PostgreSQL (particionado por tiempo)", "Historial de eventos del wearable para consulta, analisis y evidencia.")
+}
+
+' ---------------------- Relaciones ----------------------
+Rel(adultoMayor, wearable, "Porta el dispositivo")
+Rel(adultoMayor, webapp, "Consulta su propio estado e historial", "HTTPS")
+Rel(wearable, ingesta, "Emite eventos", "HTTPS/JSON sobre TLS")
+
+Rel(familiar, webapp, "Consulta estado e historial y confirma alertas", "HTTPS")
+Rel(cuidador, webapp, "Monitorea y gestiona incidentes", "HTTPS")
+Rel(admin, webapp, "Configura reglas, usuarios y canales", "HTTPS")
+
+Rel(webapp, api, "Consulta y configura", "HTTPS/JSON")
+
+Rel(ingesta, bus, "Publica evento crudo", "AMQP 1.0 sobre TLS")
+Rel(bus, reglas, "Entrega evento crudo", "AMQP 1.0 sobre TLS")
+Rel(reglas, bus, "Publica alerta confirmada", "AMQP 1.0 sobre TLS")
+Rel(bus, notificaciones, "Entrega alerta confirmada", "AMQP 1.0 sobre TLS")
+Rel(notificaciones, notif, "Envia la notificacion", "HTTPS/REST y SMTP")
+Rel(notif, familiar, "Entrega la alerta", "SMS, correo y mensajeria")
+Rel(notif, cuidador, "Entrega la alerta", "SMS, correo y mensajeria")
+
+Rel(api, bdop, "Lee y escribe configuracion y alertas", "PostgreSQL wire sobre TLS")
+Rel(reglas, bdop, "Lee reglas y escribe alertas", "PostgreSQL wire sobre TLS")
+Rel(notificaciones, bdop, "Registra acuse de entrega", "PostgreSQL wire sobre TLS")
+Rel(ingesta, bdev, "Persiste el evento", "PostgreSQL wire sobre TLS")
+Rel(api, bdev, "Consulta el historial", "PostgreSQL wire sobre TLS")
+
+SHOW_LEGEND()
+@enduml
