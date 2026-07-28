@@ -377,6 +377,8 @@ flowchart TB
     C5 -->|"AMQP 1.0"| C4
     C4 -->|"AMQP 1.0"| C6
     C6 -->|"HTTPS y SMTP"| NO
+    NO -->|"entrega la alerta"| FA
+    NO -->|"entrega la alerta"| CU
 
     C2 -->|"SQL/TLS"| C7
     C5 -->|"SQL/TLS"| C7
@@ -426,12 +428,13 @@ flowchart TB
 | Motor de Reglas | Bus de Mensajería | AMQP 1.0 sobre TLS | Publica la alerta confirmada. |
 | Bus de Mensajería | Servicio de Notificaciones | AMQP 1.0 sobre TLS | Entrega la alerta confirmada para su despacho. |
 | Servicio de Notificaciones | Servicios de notificación externos | HTTPS/REST y SMTP | Despacha la notificación por el canal correspondiente. |
+| Servicios de notificación externos | Familiar / Cuidador Profesional | SMS, correo y mensajería | Entregan la alerta al destinatario final, tal como se representó en §7.1. |
 | API de Aplicación / Motor de Reglas / Servicio de Notificaciones | BD Operativa | PostgreSQL wire protocol sobre TLS | Lectura y escritura de configuración, alertas y acuses. |
 | Servicio de Ingesta / API de Aplicación | Almacén de Eventos | PostgreSQL wire protocol sobre TLS | Persistencia y consulta del historial de eventos. |
 
 #### 7.2.3 Consistencia con la vista de contexto
 
-Los cuatro actores (Adulto Mayor, Familiar, Cuidador Profesional y Administrador) y los dos sistemas externos (Wearable simulado y Servicios de notificación externos) son los mismos declarados en §7.1, sin altas ni bajas. Las relaciones que en la vista de contexto entraban o salían de la caja única de SeniorCareHub se refinan aquí hacia el contenedor específico que las atiende: la emisión de eventos del wearable aterriza en el Servicio de Ingesta, el acceso de los tres actores humanos entra por la App Web, y la salida hacia los proveedores de notificación parte del Servicio de Notificaciones. El Adulto Mayor conserva la doble relación con el sistema definida en §7.1: una indirecta, mediada por el wearable que genera los eventos, y una directa con la App Web cuando consulta su propio estado e historial.
+Los cuatro actores (Adulto Mayor, Familiar, Cuidador Profesional y Administrador) y los dos sistemas externos (Wearable simulado y Servicios de notificación externos) son los mismos declarados en §7.1, sin altas ni bajas. Las relaciones que en la vista de contexto entraban o salían de la caja única de SeniorCareHub se refinan aquí hacia el contenedor específico que las atiende: la emisión de eventos del wearable aterriza en el Servicio de Ingesta, el acceso de los cuatro actores humanos entra por la App Web, y la salida hacia los proveedores de notificación parte del Servicio de Notificaciones, que a su vez entregan la alerta al Familiar y al Cuidador Profesional tal como se representó en §7.1. El Adulto Mayor conserva la doble relación con el sistema definida en §7.1: una indirecta, mediada por el wearable que genera los eventos, y una directa con la App Web cuando consulta su propio estado e historial.
 
 ---
 
@@ -498,7 +501,7 @@ La misma descomposición en servicios de la solución adoptada, pero comunicados
 
 ### 8.5 Trazabilidad hacia las decisiones registradas
 
-La elección del estilo y la selección del producto concreto de mensajería se registran como decisiones formales en la carpeta `/decisiones`, con el detalle de contexto, alternativas y consecuencias correspondiente a cada una.
+La elección del estilo arquitectónico se registra como decisión formal en ADR-001 (sección 9), con el detalle de contexto, alternativas evaluadas y consecuencias. La selección del producto concreto que materializa ese estilo es una decisión de tecnología subordinada al estilo, y no al revés: el diseño se sostiene sobre cualquier intermediario durable con entrega garantizada, cola de mensajes muertos y suscripción múltiple. La tecnología elegida y sus características se detallan en la vista de contenedores (sección 7.2.1).
 
 ---
 

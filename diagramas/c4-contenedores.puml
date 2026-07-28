@@ -46,6 +46,8 @@ Rel(bus, reglas, "Entrega evento crudo", "AMQP 1.0 sobre TLS")
 Rel(reglas, bus, "Publica alerta confirmada", "AMQP 1.0 sobre TLS")
 Rel(bus, notificaciones, "Entrega alerta confirmada", "AMQP 1.0 sobre TLS")
 Rel(notificaciones, notif, "Envia la notificacion", "HTTPS/REST y SMTP")
+Rel(notif, familiar, "Entrega la alerta", "SMS, correo y mensajeria")
+Rel(notif, cuidador, "Entrega la alerta", "SMS, correo y mensajeria")
 
 Rel(api, bdop, "Lee y escribe configuracion y alertas", "PostgreSQL wire sobre TLS")
 Rel(reglas, bdop, "Lee reglas y escribe alertas", "PostgreSQL wire sobre TLS")
