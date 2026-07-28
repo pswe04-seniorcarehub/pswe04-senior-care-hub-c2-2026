@@ -395,6 +395,8 @@ flowchart TB
     class C1,C2,C3,C4,C5,C6,C7,C8 cont
 ```
 
+*Figura 2 — Vista de contenedores (C4 · Nivel 2) de SeniorCareHub*
+
 > **Leyenda.** Azul oscuro: actores. Gris: sistemas externos fuera del alcance del equipo.
 > Azul claro: contenedores de SeniorCareHub; los cilindros son almacenes de datos.
 > Cada relación indica el protocolo; el detalle de qué transporta cada una se encuentra
