@@ -1,0 +1,30 @@
+sequenceDiagram
+    autonumber
+
+    actor Bus as Bus de Mensajería
+    participant Consumer as EventMessageConsumer
+    participant Service as RuleProcessingService
+    participant Confirmation as IConfirmationService
+    participant StateRepo as IConfirmationStateRepository
+
+    Bus->>Consumer: Entregar mensaje de evento
+    Consumer->>Consumer: MapToEvent(message)
+    Consumer->>Service: ProcessAsync(event)
+
+    Note over Service,Confirmation: Validación, recuperación del perfil y reglas,<br/>y evaluación completadas correctamente
+
+    Service->>Confirmation: ConfirmAsync(event, evaluation)
+
+    Confirmation->>StateRepo: GetAsync(event.olderAdultId, rule.ruleId)
+    StateRepo-->>Confirmation: ConfirmationState pendiente
+
+    Confirmation->>Confirmation: Correlacionar evento y actualizar ventana
+    Confirmation->>StateRepo: SaveAsync(state)
+
+    StateRepo--xConfirmation: Excepción durante la persistencia
+    Confirmation--xService: Propagar excepción técnica
+    Service--xConsumer: Procesamiento no completado
+
+    Consumer-->>Bus: No confirmar el mensaje
+
+    Note over Bus,Consumer: El mensaje permanece disponible para su reentrega<br/>mediante el mecanismo de reintentos del Bus

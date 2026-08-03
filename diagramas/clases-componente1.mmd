@@ -1,0 +1,345 @@
+classDiagram
+    direction TB
+
+    %% =====================================================
+    %% PUNTO DE ENTRADA
+    %% =====================================================
+
+    class EventMessageConsumer {
+        <<Entry Point>>
+        <<Adapter>>
+        -IRuleProcessingService ruleProcessingService
+        +HandleAsync(message) Task
+        -MapToEvent(message) MonitoringEvent
+    }
+
+    class IRuleProcessingService {
+        <<interface>>
+        <<Exposed Interface>>
+        +ProcessAsync(event) Task~ProcessingResult~
+    }
+
+    class RuleProcessingService {
+        <<Application Service>>
+        -IEventValidator eventValidator
+        -IMonitoringProfileRepository profileRepository
+        -IMonitoringRuleRepository ruleRepository
+        -IRuleEvaluatorFactory evaluatorFactory
+        -IConfirmationService confirmationService
+        -IDeduplicationService deduplicationService
+        -IAlertRepository alertRepository
+        -IAlertPublisher alertPublisher
+        +ProcessAsync(event) Task~ProcessingResult~
+        -CreateAlert(event, rule, evaluation, confirmation) Alert
+    }
+
+    EventMessageConsumer --> IRuleProcessingService : inicia procesamiento
+    RuleProcessingService ..|> IRuleProcessingService : implementa
+
+    %% =====================================================
+    %% VALIDACIÓN
+    %% =====================================================
+
+    class IEventValidator {
+        <<interface>>
+        +ValidateAsync(event) Task~EventValidationResult~
+    }
+
+    class EventValidator {
+        +ValidateAsync(event) Task~EventValidationResult~
+        -ValidateRequiredData(event) ValidationErrorCollection
+    }
+
+    EventValidator ..|> IEventValidator : implementa
+    RuleProcessingService --> IEventValidator : valida evento
+
+    %% =====================================================
+    %% REPOSITORIOS
+    %% =====================================================
+
+    class IMonitoringProfileRepository {
+        <<interface>>
+        <<Repository>>
+        +GetByOlderAdultIdAsync(olderAdultId, profileVersion) Task~MonitoringProfile~
+    }
+
+    class IMonitoringRuleRepository {
+        <<interface>>
+        <<Repository>>
+        +GetActiveRulesAsync(profileId, profileVersion, eventType) Task~MonitoringRuleCollection~
+    }
+
+    class IAlertRepository {
+        <<interface>>
+        <<Repository>>
+        +ExistsBySourceEventIdAsync(eventId) Task~bool~
+        +ExistsActiveEquivalentAsync(olderAdultId, alertType) Task~bool~
+        +SaveAsync(alert) Task
+    }
+
+    class IConfirmationStateRepository {
+        <<interface>>
+        <<Repository>>
+        +GetAsync(olderAdultId, ruleId, profileVersion) Task~ConfirmationState~
+        +SaveAsync(state) Task
+    }	
+
+    class PostgreSqlMonitoringProfileRepository {
+        +GetByOlderAdultIdAsync(olderAdultId, profileVersion) Task~MonitoringProfile~
+    }
+
+    class PostgreSqlMonitoringRuleRepository {
+        +GetActiveRulesAsync(profileId, profileVersion, eventType) Task~MonitoringRuleCollection~
+    }
+
+    class PostgreSqlAlertRepository {
+        +ExistsBySourceEventIdAsync(eventId) Task~bool~
+        +ExistsActiveEquivalentAsync(olderAdultId, alertType) Task~bool~
+        +SaveAsync(alert) Task
+    }
+
+    class PostgreSqlConfirmationStateRepository {
+        +GetAsync(olderAdultId, ruleId, profileVersion) Task~ConfirmationState~
+        +SaveAsync(state) Task
+    }
+
+    PostgreSqlMonitoringProfileRepository ..|> IMonitoringProfileRepository
+    PostgreSqlMonitoringRuleRepository ..|> IMonitoringRuleRepository
+    PostgreSqlAlertRepository ..|> IAlertRepository
+    PostgreSqlConfirmationStateRepository ..|> IConfirmationStateRepository
+
+    RuleProcessingService --> IMonitoringProfileRepository : consulta perfil
+    RuleProcessingService --> IMonitoringRuleRepository : consulta reglas
+    RuleProcessingService --> IAlertRepository : persiste alerta    
+
+    %% =====================================================
+    %% EVALUACIÓN DE REGLAS
+    %% =====================================================
+
+    class IRuleEvaluatorFactory {
+        <<interface>>
+        <<Factory>>
+        +Create(ruleType) IRuleEvaluator
+    }
+
+    class RuleEvaluatorFactory {
+        -IRuleEvaluatorCollection evaluators
+        +Create(ruleType) IRuleEvaluator
+    }
+
+    class IRuleEvaluator {
+        <<interface>>
+        <<Strategy>>
+        +Supports(ruleType) bool
+        +Evaluate(event, rule, profile) RuleEvaluationResult
+    }
+
+    class FallRuleEvaluator {
+        <<Concrete Strategy>>
+        +Supports(ruleType) bool
+        +Evaluate(event, rule, profile) RuleEvaluationResult
+    }
+
+    class InactivityRuleEvaluator {
+        <<Concrete Strategy>>
+        +Supports(ruleType) bool
+        +Evaluate(event, rule, profile) RuleEvaluationResult
+    }
+
+    class SafeZoneRuleEvaluator {
+        <<Concrete Strategy>>
+        +Supports(ruleType) bool
+        +Evaluate(event, rule, profile) RuleEvaluationResult
+    }
+
+    RuleEvaluatorFactory ..|> IRuleEvaluatorFactory
+    RuleEvaluatorFactory o-- IRuleEvaluator : selecciona
+
+    FallRuleEvaluator ..|> IRuleEvaluator
+    InactivityRuleEvaluator ..|> IRuleEvaluator
+    SafeZoneRuleEvaluator ..|> IRuleEvaluator
+
+    RuleProcessingService --> IRuleEvaluatorFactory : solicita evaluador
+
+    %% =====================================================
+    %% CONFIRMACIÓN Y DEDUPLICACIÓN
+    %% =====================================================
+
+    class IConfirmationService {
+        <<interface>>
+        +ConfirmAsync(event, rule, evaluation) Task~ConfirmationResult~
+    }
+
+    class ConfirmationService {
+        +ConfirmAsync(event, rule, evaluation) Task~ConfirmationResult~
+    }
+
+    class IDeduplicationService {
+        <<interface>>
+        +IsDuplicateAsync(eventId, olderAdultId, alertType) Task~bool~
+    }
+
+    class DeduplicationService {
+        -IAlertRepository alertRepository
+        +IsDuplicateAsync(eventId, olderAdultId, alertType) Task~bool~
+    }
+
+    ConfirmationService ..|> IConfirmationService
+    DeduplicationService ..|> IDeduplicationService
+
+    ConfirmationService --> IConfirmationStateRepository : consulta y actualiza estado
+
+    RuleProcessingService --> IConfirmationService : confirma riesgo
+    RuleProcessingService --> IDeduplicationService : evita duplicados
+    DeduplicationService --> IAlertRepository : consulta alertas existentes
+
+    %% =====================================================
+    %% PUBLICACIÓN DE ALERTAS
+    %% =====================================================
+
+    class IAlertPublisher {
+        <<interface>>
+        +PublishAsync(alert) Task
+    }
+
+    class AzureServiceBusAlertPublisher {
+        <<Adapter>>
+        +PublishAsync(alert) Task
+    }
+
+    AzureServiceBusAlertPublisher ..|> IAlertPublisher
+    RuleProcessingService --> IAlertPublisher : publica alerta
+
+    %% =====================================================
+    %% OBJETOS DE INFORMACIÓN
+    %% =====================================================
+
+    class MonitoringEvent {
+        <<DTO>>
+        +Guid EventId
+        +Guid OlderAdultId
+        +int ProfileVersion
+        +EventType EventType
+        +DateTimeOffset OccurredAt
+        +Dictionary Payload        
+    }
+
+    class MonitoringProfile {
+        <<Entity>>
+        +Guid ProfileId
+        +Guid OlderAdultId
+        +int Version
+        +bool IsActive
+        +RiskLevel RiskLevel
+    }
+
+    class MonitoringRule {
+        <<Entity>>
+        +Guid RuleId
+        +RuleType RuleType
+        +AlertSeverity Severity
+        +bool RequiresConfirmation
+        +Dictionary Parameters
+    }
+    
+    class Alert {
+        <<Entity>>
+        +Guid AlertId
+        +GuidCollection SourceEventIds
+        +Guid OlderAdultId
+        +Guid RuleId
+        +int ProfileVersion
+        +AlertType AlertType
+        +AlertSeverity Severity
+        +DateTimeOffset CreatedAt
+    }
+
+    class EventValidationResult {
+        <<Value Object>>
+        +bool IsValid
+        +ValidationErrorCollection Errors
+    }
+
+    class RuleEvaluationResult {
+        <<Value Object>>
+        +bool IsMatch
+        +AlertType AlertType
+        +AlertSeverity Severity
+        +string Reason
+    }
+
+    class ConfirmationResult {
+        <<Value Object>>
+        +bool IsConfirmed
+        +string Reason
+        +GuidCollection SourceEventIds
+    }
+
+    class ConfirmationState {
+        <<Entity>>
+        +Guid ConfirmationStateId
+        +Guid OlderAdultId
+        +Guid RuleId
+        +int ProfileVersion
+        +DateTimeOffset WindowStartedAt
+        +DateTimeOffset WindowExpiresAt
+        +DateTimeOffset LastEventAt
+        +int MatchingEventCount
+        +GuidCollection MatchingEventIds
+        +ConfirmationStateStatus Status
+    }   
+
+    class ProcessingResult {
+        <<Value Object>>
+        +ProcessingStatus Status
+        +Guid AlertId
+        +string Message
+    }
+
+    EventMessageConsumer ..> MonitoringEvent : transforma mensaje
+
+    IRuleProcessingService ..> MonitoringEvent
+    IRuleProcessingService ..> ProcessingResult
+
+    IEventValidator ..> MonitoringEvent
+    IEventValidator ..> EventValidationResult
+
+    IMonitoringProfileRepository ..> MonitoringProfile
+    IMonitoringRuleRepository ..> MonitoringRule
+
+    IRuleEvaluator ..> MonitoringEvent
+    IRuleEvaluator ..> MonitoringProfile
+    IRuleEvaluator ..> MonitoringRule
+    IRuleEvaluator ..> RuleEvaluationResult
+
+    IConfirmationService ..> ConfirmationResult
+    IConfirmationStateRepository ..> ConfirmationState
+    IAlertRepository ..> Alert
+    IAlertPublisher ..> Alert
+    
+    %% =====================================================
+    %% ESTILOS
+    %% =====================================================
+
+    classDef entryPoint fill:#f4d06f,stroke:#6b4f00,stroke-width:4px,color:#000
+    classDef centralService fill:#dbeafe,stroke:#1d4ed8,stroke-width:3px,color:#000
+    classDef exposedInterface fill:#e0f2fe,stroke:#0369a1,stroke-width:2px,color:#000
+    classDef strategy fill:#f3e8ff,stroke:#7e22ce,stroke-width:2px,color:#000
+    classDef repository fill:#ecfdf5,stroke:#047857,stroke-width:2px,color:#000
+    classDef adapter fill:#fff7ed,stroke:#c2410c,stroke-width:2px,color:#000
+    classDef dataObject fill:#f8fafc,stroke:#64748b,stroke-width:1px,color:#000
+
+    cssClass "EventMessageConsumer" entryPoint
+    cssClass "RuleProcessingService" centralService
+    cssClass "IRuleProcessingService" exposedInterface
+
+    cssClass "IRuleEvaluator,IRuleEvaluatorFactory,RuleEvaluatorFactory,FallRuleEvaluator,InactivityRuleEvaluator,SafeZoneRuleEvaluator" strategy
+
+    cssClass "IMonitoringProfileRepository,IMonitoringRuleRepository,IAlertRepository,IConfirmationStateRepository,PostgreSqlMonitoringProfileRepository,PostgreSqlMonitoringRuleRepository,PostgreSqlAlertRepository,PostgreSqlConfirmationStateRepository" repository
+
+    cssClass "AzureServiceBusAlertPublisher" adapter
+
+    cssClass "MonitoringEvent,MonitoringProfile,MonitoringRule,Alert,EventValidationResult,RuleEvaluationResult,ConfirmationResult,ConfirmationState,ProcessingResult" dataObject
+
+
+

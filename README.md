@@ -2,10 +2,10 @@
 
 > **Plataforma Inteligente Distribuida de Monitoreo y Asistencia para Adultos Mayores**
 
-![Estado](https://img.shields.io/badge/estado-Avance%202%20(S11)-blue)
+![Estado](https://img.shields.io/badge/estado-Entrega%202%20Final(S14)-blue)
 ![Curso](https://img.shields.io/badge/curso-PSWE--04-blue)
 ![Universidad](https://img.shields.io/badge/Universidad-Cenfotec-006341)
-![Versión](https://img.shields.io/badge/versión-0.2-lightgrey)
+![Versión](https://img.shields.io/badge/versión-1.0-lightgrey)
 
 SeniorCareHub es una plataforma **IoT distribuida** de monitoreo y asistencia para adultos mayores que recibe eventos simulados de dispositivos *wearable*, detecta situaciones de riesgo mediante reglas configurables y notifica a familiares o cuidadores a través de múltiples canales de comunicación **disponibilidad**, **tolerancia a fallas** y **baja latencia** en la entrega de alertas.
 
@@ -42,8 +42,8 @@ SeniorCareHub es una plataforma **IoT distribuida** de monitoreo y asistencia pa
 |---|---|---|---|---|
 | **Propuesta** | S03 | 0.1 | Aprobado | [📄 Propuesta S03](./docs/s03-propuesta.md) |
 | **Avance 1** | S07 | 0.2 | Aprobado | [📄 Documento de Diseño](./docs/PSWE04_SeniorCareHub_Documento_Proyecto.md) |
-| **Avance 2** | S11 | 0.3 | En revisión | [📄 Documento de Diseño](./docs/PSWE04_SeniorCareHub_Documento_Proyecto.md) |
-| **Entrega Final** | S14 | 1.0 | Pendiente | — |
+| **Avance 2** | S11 | 0.3 | Aprobado | [📄 Documento de Diseño](./docs/PSWE04_SeniorCareHub_Documento_Proyecto.md) |
+| **Entrega Final** | S14 | 1.0 | En revisión | [📄 Documento de Diseño](./docs/PSWE04_SeniorCareHub_Documento_Proyecto.md) |
 
 ---
 
@@ -53,9 +53,9 @@ SeniorCareHub es una plataforma **IoT distribuida** de monitoreo y asistencia pa
 |---|---|
 | [Documento de Diseño de Software](./docs/PSWE04_SeniorCareHub_Documento_Proyecto.md) | Documento principal bajo el template estándar PSWE-04. |
 | [Propuesta S03](./docs/s03-propuesta.md) | Propuesta inicial: contexto, objetivo, alcance y complejidad. |
-| [Vista de Contexto C4](./diagramas/c4-contexto.puml) | Diagrama C4 de contexto correspondiente al Avance 1 (S07). |
+| [Diagramas C4](./diagramas/*.puml) | Diagramas de arquitectura C4 y demás vistas arquitectónicas generales, desarrollados en PlantUML (`.puml`). |
 | [Decisiones arquitectónicas (ADRs)](./decisiones) | Registro de decisiones de diseño del proyecto. |
-| [Otros diagramas](./diagramas) | Diagramas arquitectónicos adicionales que se incorporarán en los siguientes hitos del proyecto. |
+| [Diagramas de diseño detallado](./diagramas/*.mmd) | Diagramas de clases y de secuencia correspondientes al diseño detallado de los componentes, desarrollados en Mermaid (`.mmd`). Cada diagrama cuenta además con su representación renderizada en formato `.png`, utilizada en el documento principal para facilitar su visualización. |
 
 ---
 
