@@ -1,0 +1,79 @@
+sequenceDiagram
+    autonumber
+
+    participant Bus as Bus de Mensajería
+    participant Consumer as AlertMessageConsumer
+    participant Service as NotificationProcessingService
+    participant ProfileRepo as INotificationProfileRepository
+    participant TrackingRepo as INotificationTrackingRepository
+    participant ChannelService as ChannelSelectionService
+    participant Factory as NotificationAdapterFactory
+    participant Adapter as INotificationAdapter
+    participant Provider as Proveedor externo
+
+    Bus->>Consumer: Entregar mensaje de alerta confirmada
+    activate Consumer
+
+    Consumer->>Consumer: MapToAlert(message)
+    Consumer->>Service: ProcessAsync(alert)
+    activate Service
+
+    Service->>ProfileRepo: GetByOlderAdultIdAsync(olderAdultId, profileVersion)
+    activate ProfileRepo
+    ProfileRepo-->>Service: NotificationProfile
+    deactivate ProfileRepo
+
+    Service->>TrackingRepo: GetByAlertAndRecipientAsync(alertId, recipientId)
+    activate TrackingRepo
+    TrackingRepo-->>Service: null
+    deactivate TrackingRepo
+
+    Service->>Service: CreateNotification(alert, recipient)
+
+    Service->>ChannelService: SelectApplicableChannels(alert, profile, recipient)
+    activate ChannelService
+    ChannelService-->>Service: Un canal aplicable
+    deactivate ChannelService
+
+    Service->>Factory: Create(channelType, providerId)
+    activate Factory
+
+    Factory->>Adapter: Supports(channelType, providerId)
+    activate Adapter
+    Adapter-->>Factory: true
+    deactivate Adapter
+
+    Factory-->>Service: INotificationAdapter compatible
+    deactivate Factory
+
+    Service->>Adapter: SendAsync(alert, recipient, channel)
+    activate Adapter
+
+    Adapter->>Provider: Solicitar envío de la notificación
+    activate Provider
+    Provider-->>Adapter: Respuesta de falla transitoria
+    deactivate Provider
+
+    Adapter-->>Service: AdapterSendResult<br/>DeliveryStatus = Failed<br/>FailureType = Transient
+    deactivate Adapter
+
+    Service->>Service: CreateAttempt(notification, channel)
+
+    Service->>TrackingRepo: SaveAttemptAsync(attempt)
+    activate TrackingRepo
+    TrackingRepo-->>Service: Intento fallido registrado
+    deactivate TrackingRepo
+
+    Note over Service: No existen canales alternativos.<br/>Notification.Status = PendingRetry
+
+    Service->>TrackingRepo: SaveNotificationAsync(notification)
+    activate TrackingRepo
+    TrackingRepo-->>Service: Estado almacenado
+    deactivate TrackingRepo
+
+    Service-->>Consumer: NotificationProcessingResult<br/>Status = PendingRetry<br/>ShouldAcknowledgeMessage = false
+    deactivate Service
+
+    Note over Consumer,Bus: El mensaje no se confirma y permanece disponible<br/>para reentrega según la política de mensajería.
+
+    deactivate Consumer

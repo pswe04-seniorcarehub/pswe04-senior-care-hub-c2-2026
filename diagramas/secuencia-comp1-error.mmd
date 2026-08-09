@@ -11,11 +11,11 @@ sequenceDiagram
     Consumer->>Consumer: MapToEvent(message)
     Consumer->>Service: ProcessAsync(event)
 
-    Note over Service,Confirmation: Validación, recuperación del perfil y reglas,<br/>y evaluación completadas correctamente
+    Note over Service,Confirmation: Validación, recuperación del perfil y reglas,<br/>evaluación y selección de una regla coincidente<br/>completadas correctamente
 
-    Service->>Confirmation: ConfirmAsync(event, evaluation)
+    Service->>Confirmation: ConfirmAsync(event, rule, evaluation)
 
-    Confirmation->>StateRepo: GetAsync(event.olderAdultId, rule.ruleId)
+    Confirmation->>StateRepo: GetAsync(event.olderAdultId, rule.ruleId, event.profileVersion)
     StateRepo-->>Confirmation: ConfirmationState pendiente
 
     Confirmation->>Confirmation: Correlacionar evento y actualizar ventana

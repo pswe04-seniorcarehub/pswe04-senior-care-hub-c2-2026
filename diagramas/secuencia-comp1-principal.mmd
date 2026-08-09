@@ -51,10 +51,10 @@ sequenceDiagram
 
     Confirmation-->>Service: ConfirmationResult confirmado con SourceEventIds
 
-    Service->>Deduplication: IsDuplicateAsync(event.eventId, event.olderAdultId, evaluation.alertType)
+    Service->>Deduplication: IsDuplicateAsync(event.eventId, event.olderAdultId, rule.alertType)
     Deduplication-->>Service: false
 
-    Service->>Service: CreateAlert(event, rule, evaluation, confirmation)
+    Service->>Service: CreateAlert(event, rule, confirmation)
 
     Service->>AlertRepo: SaveAsync(alert)
     AlertRepo-->>Service: Alerta almacenada
@@ -64,5 +64,5 @@ sequenceDiagram
     Bus-->>Publisher: Publicación aceptada
     Publisher-->>Service: Publicación completada
 
-    Service-->>Consumer: ProcessingResult exitoso
+    Service-->>Consumer: ProcessingResult(AlertGenerated, alertId)
     Consumer-->>Bus: Confirmar procesamiento del mensaje

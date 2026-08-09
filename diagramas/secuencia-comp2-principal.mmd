@@ -1,0 +1,87 @@
+```mermaid
+sequenceDiagram
+    autonumber
+
+    participant Bus as Bus de Mensajería
+    participant Consumer as AlertMessageConsumer
+    participant Service as NotificationProcessingService
+    participant ProfileRepo as INotificationProfileRepository
+    participant TrackingRepo as INotificationTrackingRepository
+    participant ChannelService as ChannelSelectionService
+    participant Factory as NotificationAdapterFactory
+    participant Adapter as INotificationAdapter
+    participant Provider as Proveedor externo
+
+    Bus->>Consumer: Entregar mensaje de alerta confirmada
+    activate Consumer
+
+    Consumer->>Consumer: MapToAlert(message)
+    Consumer->>Service: ProcessAsync(alert)
+    activate Service
+
+    Service->>ProfileRepo: GetByOlderAdultIdAsync(olderAdultId, profileVersion)
+    activate ProfileRepo
+    ProfileRepo-->>Service: NotificationProfile
+    deactivate ProfileRepo
+
+    loop Por cada destinatario habilitado del perfil
+        Service->>TrackingRepo: GetByAlertAndRecipientAsync(alertId, recipientId)
+        activate TrackingRepo
+        TrackingRepo-->>Service: null
+        deactivate TrackingRepo
+
+        Note over Service: No existe una notificación previa.<br/>Se crea Notification en memoria.
+
+        Service->>Service: CreateNotification(alert, recipient)
+
+        Service->>ChannelService: SelectApplicableChannels(alert, profile, recipient)
+        activate ChannelService
+        ChannelService-->>Service: Canales aplicables ordenados por prioridad
+        deactivate ChannelService
+
+        Note over Service: Se selecciona la primera configuración<br/>de canal aplicable.
+
+        Service->>Factory: Create(channelType, providerId)
+        activate Factory
+
+        Factory->>Adapter: Supports(channelType, providerId)
+        activate Adapter
+        Adapter-->>Factory: true
+        deactivate Adapter
+
+        Factory-->>Service: INotificationAdapter compatible
+        deactivate Factory
+
+        Service->>Adapter: SendAsync(alert, recipient, channel)
+        activate Adapter
+
+        Adapter->>Provider: Solicitar envío de la notificación
+        activate Provider
+        Provider-->>Adapter: Respuesta de entrega exitosa
+        deactivate Provider
+
+        Adapter-->>Service: AdapterSendResult<br/>DeliveryStatus = Delivered
+        deactivate Adapter
+
+        Service->>Service: CreateAttempt(notification, channel)
+
+        Service->>TrackingRepo: SaveAttemptAsync(attempt)
+        activate TrackingRepo
+        TrackingRepo-->>Service: Intento registrado
+        deactivate TrackingRepo
+
+        Note over Service: Notification.Status = Delivered<br/>CompletedAt = fecha actual
+
+        Service->>TrackingRepo: SaveNotificationAsync(notification)
+        activate TrackingRepo
+        TrackingRepo-->>Service: Estado almacenado
+        deactivate TrackingRepo
+    end
+
+    Service-->>Consumer: NotificationProcessingResult<br/>Status = Delivered<br/>ShouldAcknowledgeMessage = true
+    deactivate Service
+
+    Consumer->>Bus: Confirmar mensaje (ACK)
+
+    deactivate Consumer
+    ```
