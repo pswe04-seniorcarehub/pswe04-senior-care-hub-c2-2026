@@ -499,6 +499,8 @@ sequenceDiagram
 
 *Figura 12 — Secuencia de sistema: detección y notificación de un evento crítico*
 
+El orden de las operaciones de la ingesta no es casual: la aceptación se emite únicamente después de persistir y publicar el evento, de modo que una falla intermedia deja al emisor sin confirmación y este reintenta; el duplicado resultante lo absorbe la deduplicación de ADR-003.
+
 #### 7.3.2 Flujo 2 — Fallo del proveedor de notificación
 
 Ejercita el escenario QS-03: ante la indisponibilidad de un proveedor, ninguna alerta crítica se pierde y la entrega se completa por un canal alterno en menos de diez segundos. Es el flujo que justifica el estilo adoptado en §8.
@@ -572,6 +574,8 @@ sequenceDiagram
 ```
 
 *Figura 14 — Secuencia de sistema: cambio de una regla de detección sin interrupción*
+
+> Fuente editable de los tres flujos: `diagramas/comportamiento.puml`.
 
 #### 7.3.4 Trazabilidad hacia los escenarios de calidad
 
@@ -760,6 +764,8 @@ flowchart TB
 *Figura 16 — Vista de concurrencia: particionamiento por sesión y consumidores en competencia*
 
 > **Leyenda.** Azul claro: unidades de ejecución concurrentes. Verde azulado: sesiones lógicas del bus, una por adulto mayor. Azul oscuro: estado compartido persistente.
+>
+> Fuente editable en formato de secuencia PlantUML: `diagramas/concurrencia.puml`.
 
 #### 7.5.1 Unidades de concurrencia
 
