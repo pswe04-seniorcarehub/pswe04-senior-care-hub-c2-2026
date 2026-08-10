@@ -41,6 +41,7 @@
    - 7.3 [Vista de comportamiento](#73-vista-de-comportamiento)
    - 7.4 [Vista de despliegue](#74-vista-de-despliegue)
    - 7.5 [Vista de concurrencia](#75-vista-de-concurrencia)
+   - 7.6 [Evolución de las vistas arquitectónicas](#76-evolución-de-las-vistas-arquitectónicas)
 8. [Estilo arquitectónico](#8-estilo-arquitectónico)
 9. [Registro de decisiones — ADRs](#9-registro-de-decisiones--adrs)
 10. [Diseño detallado de componentes](#10-diseño-detallado-de-componentes)
@@ -789,6 +790,54 @@ flowchart TB
 #### 7.5.4 Consistencia con las vistas anteriores
 
 Las unidades de concurrencia descritas corresponden exactamente a los contenedores de §7.2 y a los nodos de ejecución de §7.4: las réplicas del Motor de Reglas y del Servicio de Notificaciones son las instancias del entorno de Container Apps, y las instancias de la API y la Ingesta son las del App Service Plan compartido. Las sesiones no constituyen un contenedor adicional, sino una característica del Bus de Mensajería ya declarada en la tabla de contenedores de §7.2.1 y justificada en §8.
+
+### 7.6 Evolución de las vistas arquitectónicas
+
+Las vistas de este capítulo no se produjeron de una sola vez: se construyeron y corrigieron a lo largo de los tres hitos del proyecto. Esta sección documenta qué cambió en cada una, por qué cambió y dónde queda la evidencia en el historial del repositorio, de modo que la arquitectura presentada pueda leerse como el resultado de un proceso de revisión y no como una versión final sin trazabilidad.
+
+#### 7.6.1 Resumen por hito
+
+| Hito | Vistas incorporadas | Vistas modificadas |
+|---|---|---|
+| Avance 1 (S07) | 7.1 Vista de contexto | — |
+| Avance 2 (S11) | 7.2 Vista de contenedores | 7.2 (tres correcciones posteriores a la revisión interna) |
+| Entrega final (S14) | 7.3 Comportamiento, 7.4 Despliegue, 7.5 Concurrencia | — |
+
+#### 7.6.2 Vista de contexto: estabilidad deliberada
+
+La vista de contexto no ha sufrido modificaciones sustantivas desde el Avance 1. Sus cuatro actores —Adulto Mayor, Familiar, Cuidador Profesional y Administrador— y sus dos sistemas externos —el wearable simulado y los servicios de notificación— se mantienen sin altas ni bajas.
+
+Esta estabilidad no es casual y conviene interpretarla correctamente: indica que la frontera del sistema y su relación con el entorno quedaron bien delimitadas desde el primer hito. Los cambios posteriores ocurrieron todos en niveles de mayor detalle, que es donde se esperaba que ocurrieran. Un vaivén en la vista de contexto habría señalado, en cambio, un problema de alcance no resuelto.
+
+#### 7.6.3 Vista de contenedores: tres correcciones de consistencia
+
+La vista de contenedores se incorporó en el Avance 2 y recibió tres modificaciones antes de la entrega final. Las tres se originaron en revisiones internas del equipo, no en observaciones del docente, y las tres corrigen inconsistencias con el nivel superior.
+
+| Cambio | Motivo | Evidencia |
+|---|---|---|
+| Se agregó la relación directa entre el Adulto Mayor y la App Web, y se rediseñó el diagrama para mejorar su legibilidad | La revisión de una integrante detectó que la vista de contexto incluía al Adulto Mayor como usuario del portal de consultas, mientras que la vista de contenedores lo representaba únicamente como portador del wearable | `63fdd2d` |
+| Se agregaron las relaciones de entrega de la alerta desde los servicios de notificación hacia el Familiar y el Cuidador Profesional | La vista de contexto mostraba la entrega final al destinatario, pero en la vista de contenedores el flujo terminaba en los proveedores externos y nunca alcanzaba a las personas | `cee2141` |
+| Se agregó el pie de la Figura 2 | La numeración de figuras del documento saltaba de la 1 a la 3 porque el diagrama de contenedores carecía de rótulo | `06c6e4b` |
+
+El patrón común de las dos primeras es significativo: en ambos casos el nivel de contenedores había omitido una relación que el nivel de contexto sí declaraba. La revisión cruzada entre niveles resultó ser el mecanismo que las detectó, y por eso cada vista de este capítulo cierra con una subsección explícita de consistencia con las anteriores.
+
+#### 7.6.4 Vistas incorporadas en la entrega final
+
+Las tres vistas agregadas en este hito no modifican las anteriores: las complementan en dimensiones que hasta el Avance 2 no estaban documentadas.
+
+La **vista de comportamiento** (§7.3) recorre en el tiempo las mismas relaciones ya declaradas en la tabla de §7.2.2, sin introducir participantes nuevos. La **vista de despliegue** (§7.4) asigna un nodo de ejecución a cada contenedor existente, sin crear contenedores adicionales. La **vista de concurrencia** (§7.5) describe cómo se multiplican en ejecución esos mismos contenedores y cómo se coordinan al compartir estado.
+
+Una de ellas, además, cerró una decisión que había quedado abierta: ADR-003 señalaba como consecuencia negativa que era necesario definir cómo recuperar el estado temporal de la ventana de confirmación tras un reinicio. La §7.5.3 resuelve ese punto al establecer que el estado se persiste en la BD Operativa dentro de la misma transacción de la evaluación, lo que permite que otra réplica retome una sesión interrumpida sin reiniciar la ventana.
+
+#### 7.6.5 Cambios evaluados y descartados
+
+Documentar lo que no cambió, y por qué, forma parte del registro de evolución.
+
+**Incorporar Microsoft Entra ID como sistema externo.** Al elaborar la vista de despliegue se evaluó representar al proveedor de identidad como un elemento explícito de las vistas. Se descartó porque habría introducido en un nivel inferior un sistema externo ausente de la vista de contexto del Avance 1, generando precisamente el tipo de inconsistencia entre niveles que las revisiones anteriores habían corregido. El mecanismo de identidades administradas se documenta en el texto de §7.4.2, donde su justificación es visible sin alterar la frontera del sistema.
+
+**Desagregar los proveedores de notificación por canal.** Se consideró representar por separado los proveedores de correo, SMS y mensajería. Se mantuvo la agrupación en un único sistema externo por coherencia con la vista de contexto, y porque la diferenciación por canal es una cuestión de configuración resuelta mediante adaptadores según ADR-004, no una distinción de frontera arquitectónica.
+
+**Materializar un contenedor de Gestión de Alertas.** ADR-001 identificaba inicialmente la gestión de alertas como una responsabilidad separada dentro del pipeline. Se optó por alojarla en el Motor de Reglas en lugar de crear un contenedor propio, dado que su ciclo de vida y sus datos están estrechamente ligados a la evaluación que origina la alerta. La redacción del ADR se ajustó en consecuencia para mantener la coherencia con esta vista.
 
 ---
 
