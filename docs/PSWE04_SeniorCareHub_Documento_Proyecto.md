@@ -45,6 +45,8 @@
 8. [Estilo arquitectónico](#8-estilo-arquitectónico)
 9. [Registro de decisiones — ADRs](#9-registro-de-decisiones--adrs)
 10. [Diseño detallado de componentes](#10-diseño-detallado-de-componentes)
+14. [Asuntos clave de diseño](#14-asuntos-clave-de-diseño)
+   - 14.1 [Sistemas distribuidos y computación en la nube](#141-sistemas-distribuidos-y-computación-en-la-nube)
 ---
 
 # BLOQUE 1 — CONTEXTO Y PROBLEMA
@@ -1418,6 +1420,80 @@ El siguiente diagrama de secuencia representa un camino de error en el que ocurr
 ![Secuencia — Componente 3, camino de error](../diagramas/secuencia-comp3-error.png)
 *Figura 11 — Secuencia: Falla transitoria durante la publicación de un evento*
 > **Imagen en tamaño completo:** [`secuencia-comp3-error.png`](../diagramas/secuencia-comp3-error.png) · **Fuente editable:** [`secuencia-comp3-error.mmd`](../diagramas/secuencia-comp3-error.mmd)
+
+---
+
+# BLOQUE 6 — CALIDAD Y TENDENCIAS
+*Hito: Entrega final (S14)*
+
+---
+
+## 14. Asuntos clave de diseño
+
+Este capítulo analiza SeniorCareHub bajo las lentes transversales que atraviesan su arquitectura: su condición de sistema distribuido desplegado en la nube, su comportamiento concurrente y con restricciones temporales, y su relación con el dominio de Internet de las Cosas. Cada apartado se apoya en las vistas del capítulo 7 y en las decisiones registradas en los capítulos 8 y 9, y explicita tanto lo que el diseño resuelve como lo que deliberadamente deja fuera de alcance.
+
+### 14.1 Sistemas distribuidos y computación en la nube
+
+#### 14.1.1 Por qué SeniorCareHub es un sistema distribuido
+
+SeniorCareHub cumple la caracterización clásica de un sistema distribuido: un conjunto de procesos independientes que se ejecutan en nodos separados, se comunican únicamente mediante paso de mensajes por red, no comparten memoria y no disponen de un reloj global común.
+
+La vista de despliegue (§7.4) lo hace evidente. El wearable emite desde fuera de la nube; el Servicio de Ingesta y la API se ejecutan en un plan de App Service; el Motor de Reglas y el Servicio de Notificaciones lo hacen en un entorno de Container Apps con réplicas independientes; el bus y las bases de datos son servicios gestionados con su propio ciclo de vida; y los proveedores de notificación son sistemas de terceros administrados por organizaciones distintas.
+
+Esta distribución no es un accidente de implementación sino una consecuencia directa de los drivers. QA-03 exige que ninguna alerta se pierda ante el fallo de un componente, y QA-01 una disponibilidad que no dependa del eslabón más débil de una cadena. Ambos requisitos son inalcanzables si la recepción, la evaluación y el despacho comparten destino: el análisis de alternativas de §8.3 descartó por ese motivo tanto el monolito sincrónico como los servicios acoplados por llamadas REST encadenadas.
+
+#### 14.1.2 Consecuencias de la distribución y respuestas del diseño
+
+| Consecuencia | Cómo se manifiesta en SeniorCareHub | Respuesta del diseño |
+|---|---|---|
+| Fallos parciales | Un componente puede caer mientras los demás siguen operando, y el que falla no puede avisar de forma confiable | El intermediario durable conserva el mensaje hasta que un consumidor lo confirma; la cola de mensajes muertos captura lo que agota los reintentos (§8.2) |
+| Consistencia eventual | El dashboard puede no reflejar todavía un evento ya recibido por la ingesta | Se acepta explícitamente como consecuencia negativa del estilo (§8.4); las consultas de estado no se usan como fuente para decisiones críticas, que viajan por notificación |
+| Entrega al menos una vez | Un mismo evento o alerta puede procesarse más de una vez tras un reintento | Idempotencia obligatoria en todos los consumidores, deduplicación por adulto mayor, tipo y período (ADR-003) y detección de duplicados del bus |
+| Ausencia de reloj global | La ventana de confirmación compara instantes registrados en nodos distintos, cuyos relojes divergen | Las ventanas se calculan sobre la marca temporal del evento de origen y no sobre la del instante de procesamiento, de modo que un desfase entre nodos no altera el resultado de la evaluación |
+| Orden parcial de mensajes | Dos eventos de una misma persona podrían evaluarse fuera de secuencia | Particionamiento por sesión con identificador del adulto mayor, que garantiza orden y exclusividad de consumo (§7.5.3) |
+| Observabilidad fragmentada | Ninguna traza local explica por sí sola el recorrido de una alerta | Identificador de correlación propagado extremo a extremo y telemetría centralizada en Application Insights (§7.4.1) |
+
+#### 14.1.3 Modelo de nube adoptado
+
+El sistema se despliega bajo un modelo de **plataforma como servicio**, apoyándose en servicios gestionados para el cómputo, la mensajería y la persistencia. Esta elección se contrastó con dos alternativas.
+
+Un modelo de **infraestructura como servicio**, con máquinas virtuales administradas por el equipo, habría otorgado control total sobre el sistema operativo y las versiones del intermediario y del motor de base de datos. Se descartó porque ese control no responde a ningún driver del sistema y, en cambio, traslada al equipo la responsabilidad de parchado, alta disponibilidad y respaldo, actividades que un equipo académico de tres personas no puede sostener con la fiabilidad que exige QA-01.
+
+Un modelo **completamente sin servidor**, con funciones activadas por evento, resultaba atractivo por su costo en reposo. Se descartó por la misma razón que se rechazó el escalado a cero réplicas en §7.4.2: el arranque en frío introduce una demora de varios segundos que compite directamente contra el presupuesto de cinco segundos de QS-02. La decisión ilustra una tensión característica de la nube, entre elasticidad económica y latencia predecible, resuelta a favor de la segunda porque el dominio es la seguridad de una persona.
+
+La adopción de servicios gestionados implica además un **modelo de responsabilidad compartida**: la operación del intermediario, del motor de base de datos y de la plataforma de ejecución corresponde al proveedor, mientras que el equipo conserva la responsabilidad sobre la lógica de negocio, el modelo de datos, la configuración de seguridad y el control de acceso. Los compromisos de disponibilidad publicados por el proveedor forman parte del razonamiento que sustenta la meta de QS-01, tal como se argumentó al dimensionar el despliegue.
+
+#### 14.1.4 Falacias de la computación distribuida
+
+El análisis de las ocho falacias formuladas por Deutsch y Gosling permite verificar qué supuestos implícitos podrían comprometer el diseño.
+
+**La red es confiable.** El diseño no incurre en esta falacia: es precisamente su rechazo lo que motiva el estilo adoptado. La ingesta acepta el evento sin esperar la evaluación, y ningún mensaje se considera procesado hasta que el consumidor lo confirma.
+
+**La latencia es cero.** Parcialmente atendida. El presupuesto de QS-02 contempla los saltos de red internos, pero el diseño depende de la latencia de proveedores externos sobre los que no tiene control. La mitigación es el tiempo límite por canal y el escalamiento al siguiente canal por prioridad (§7.3.2), no la esperanza de una respuesta rápida.
+
+**El ancho de banda es infinito.** Atendida indirectamente. La minimización del contenido de los eventos, adoptada en §8.4 por motivos de privacidad, reduce también el volumen transportado. El sistema no transmite datos clínicos ni multimedia.
+
+**La red es segura.** Atendida. Todo tráfico viaja cifrado, y el acceso entre servicios se realiza mediante identidades administradas en lugar de credenciales incrustadas en configuración (§7.4.2).
+
+**La topología no cambia.** Atendida por construcción. Las réplicas de Container Apps se crean y destruyen según la carga, de modo que ningún componente puede asumir la dirección fija de otro: toda comunicación del camino crítico ocurre a través del intermediario y no por invocación directa entre pares.
+
+**Hay un solo administrador.** No atendida, y es una limitación reconocida. Los proveedores de notificación son operados por terceros, con sus propias ventanas de mantenimiento, cuotas y cambios de contrato. La restricción REST-01 lo declara, y ADR-004 lo mitiga aislando cada proveedor tras una interfaz interna estable, pero el sistema sigue expuesto a decisiones ajenas.
+
+**El costo de transporte es cero.** Parcialmente atendida. Cada salto por el intermediario consume operaciones facturables y añade trabajo de serialización. La decisión de no dividir en más contenedores de los necesarios, y de resolver la gestión de alertas dentro del Motor de Reglas en lugar de crear un contenedor propio (§7.6.5), responde en parte a este criterio.
+
+**La red es homogénea.** No atendida, y tampoco es un objetivo. El sistema convive deliberadamente con tres protocolos distintos según la frontera: HTTP en el borde con el dispositivo, mensajería asincrónica en el interior y protocolos de proveedor en la salida. La heterogeneidad se administra mediante adaptadores en lugar de negarse.
+
+#### 14.1.5 Límites reconocidos del diseño distribuido
+
+**Sin replicación geográfica.** Todos los recursos residen en una única región. Una interrupción regional del proveedor deja al sistema completamente indisponible, sin ruta alterna. La meta de QS-01 se dimensionó contra ese supuesto.
+
+**Base de datos como punto único de falla.** El intermediario protege las alertas en tránsito, pero el Motor de Reglas no puede evaluar sin acceso a las reglas y al estado de confirmación. Ante una caída prolongada de la base, los eventos se acumulan en el bus sin pérdida —lo que preserva QA-03— pero el sistema deja de detectar situaciones críticas en tiempo útil, lo que sí compromete QS-02.
+
+**Zona de disponibilidad única.** Decisión consciente documentada en §7.4.2, coherente con la meta comprometida y no con una meta superior.
+
+**El simulador no reproduce la adversidad real de la red.** Un dispositivo portado por una persona sufre pérdidas de cobertura, agotamiento de batería y reconexiones que el simulador no genera. Las garantías de no pérdida verificadas en pruebas cubren el tramo desde la ingesta en adelante, no el tramo entre el dispositivo y la nube.
+
+**Ausencia de procesamiento en el borde.** Todo evento viaja íntegro a la nube antes de ser evaluado, incluidos aquellos que ninguna regla llegará a considerar. Las implicaciones de esta decisión se analizan en §14.3.
 
 
 *Documento generado bajo el template estándar PSWE-04 — Universidad Cenfotec — Maestría Profesional en Ingeniería del Software*
