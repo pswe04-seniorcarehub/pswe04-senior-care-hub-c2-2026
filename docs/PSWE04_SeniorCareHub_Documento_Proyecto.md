@@ -38,6 +38,7 @@
 7. [Vistas arquitectónicas](#7-vistas-arquitectónicas)
    - 7.1 [Vista de contexto](#71-vista-de-contexto)
    - 7.2 [Vista de contenedores](#72-vista-de-contenedores)
+   - 7.3 [Vista de comportamiento](#73-vista-de-comportamiento)
 8. [Estilo arquitectónico](#8-estilo-arquitectónico)
 9. [Registro de decisiones — ADRs](#9-registro-de-decisiones--adrs)
 10. [Diseño detallado de componentes](#10-diseño-detallado-de-componentes)
@@ -437,6 +438,147 @@ flowchart TB
 #### 7.2.3 Consistencia con la vista de contexto
 
 Los cuatro actores (Adulto Mayor, Familiar, Cuidador Profesional y Administrador) y los dos sistemas externos (Wearable simulado y Servicios de notificación externos) son los mismos declarados en §7.1, sin altas ni bajas. Las relaciones que en la vista de contexto entraban o salían de la caja única de SeniorCareHub se refinan aquí hacia el contenedor específico que las atiende: la emisión de eventos del wearable aterriza en el Servicio de Ingesta, el acceso de los cuatro actores humanos entra por la App Web, y la salida hacia los proveedores de notificación parte del Servicio de Notificaciones, que a su vez entregan la alerta al Familiar y al Cuidador Profesional tal como se representó en §7.1. El Adulto Mayor conserva la doble relación con el sistema definida en §7.1: una indirecta, mediada por el wearable que genera los eventos, y una directa con la App Web cuando consulta su propio estado e historial.
+
+### 7.3 Vista de comportamiento
+
+Esta vista describe cómo colaboran en el tiempo los contenedores definidos en §7.2 para producir los comportamientos que el sistema debe garantizar. Se documentan tres flujos representativos, seleccionados porque cada uno ejercita un escenario de calidad distinto de §4 y porque juntos recorren el camino crítico completo, su modo de fallo principal y su capacidad de cambio en operación.
+
+Los diagramas de esta sección operan a nivel de contenedores: muestran qué unidad desplegable participa y en qué orden, sin detallar la estructura interna de cada una. El comportamiento interno de los componentes se documenta en §10.
+
+#### 7.3.1 Flujo 1 — Detección y notificación de un evento crítico
+
+Corresponde al camino principal del sistema y ejercita el escenario QS-02, cuya meta es que la primera notificación se emita en cinco segundos o menos en el percentil 95.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant WE as Wearable simulado
+    participant ING as Servicio de Ingesta
+    participant BDE as Almacen de Eventos
+    participant BUS as Bus de Mensajeria
+    participant MR as Motor de Reglas
+    participant BDO as BD Operativa
+    participant SN as Servicio de Notificaciones
+    participant PR as Proveedores externos
+    participant FA as Familiar
+
+    WE->>ING: Emitir evento de caida (HTTPS/TLS)
+    ING->>ING: Autenticar dispositivo y validar estructura
+    ING->>BDE: Persistir el evento
+    ING->>BUS: Publicar evento crudo (SessionId = adulto mayor)
+    ING-->>WE: Aceptado
+
+    Note over ING,BUS: La ingesta responde sin esperar la evaluacion.<br/>El desacople temporal protege QS-01.
+
+    BUS->>MR: Entregar evento crudo
+    MR->>BDO: Leer reglas vigentes y estado de confirmacion
+    BDO-->>MR: Version de reglas y estado
+    MR->>MR: Evaluar. Criticidad inmediata: no requiere ventana
+    MR->>BDO: Registrar alerta con version de reglas y eventos origen
+    MR->>BUS: Publicar alerta confirmada
+    MR->>BUS: Completar el evento crudo
+
+    BUS->>SN: Entregar alerta confirmada
+    SN->>BDO: Leer perfil de notificacion y canales por prioridad
+    BDO-->>SN: Destinatarios y orden de canales
+    SN->>PR: Despachar por el canal de mayor prioridad
+    PR-->>SN: Aceptado
+    PR->>FA: Entregar la alerta
+    SN->>BDO: Registrar acuse de entrega
+    SN->>BUS: Completar la alerta
+
+    Note over WE,FA: Presupuesto extremo a extremo: 5 s en el percentil 95 (QS-02).
+```
+
+*Figura 12 — Secuencia de sistema: detección y notificación de un evento crítico*
+
+#### 7.3.2 Flujo 2 — Fallo del proveedor de notificación
+
+Ejercita el escenario QS-03: ante la indisponibilidad de un proveedor, ninguna alerta crítica se pierde y la entrega se completa por un canal alterno en menos de diez segundos. Es el flujo que justifica el estilo adoptado en §8.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant BUS as Bus de Mensajeria
+    participant SN as Servicio de Notificaciones
+    participant BDO as BD Operativa
+    participant P1 as Proveedor SMS
+    participant P2 as Proveedor correo
+    participant CU as Cuidador
+
+    BUS->>SN: Entregar alerta confirmada
+    SN->>BDO: Leer canales ordenados por prioridad
+    BDO-->>SN: SMS, luego correo
+
+    SN->>P1: Despachar por SMS
+    P1--xSN: Sin respuesta dentro del tiempo limite
+    SN->>BDO: Registrar intento fallido
+
+    Note over SN,BUS: La alerta sigue bloqueada en el bus, no completada.<br/>Mientras no se confirme, no puede perderse.
+
+    SN->>P2: Despachar por el siguiente canal
+    P2-->>SN: Aceptado
+    P2->>CU: Entregar la alerta
+    SN->>BDO: Registrar acuse con canal efectivo
+    SN->>BUS: Completar la alerta
+
+    alt Todos los canales fallan
+        SN->>BUS: No completar la alerta
+        BUS->>SN: Reentregar tras el intervalo de reintento
+        Note over BUS: Agotados los reintentos, la alerta pasa a la<br/>cola de mensajes muertos para intervencion manual.<br/>En ningun caso se descarta.
+    end
+```
+
+*Figura 13 — Secuencia de sistema: fallo del proveedor y entrega por canal alterno*
+
+#### 7.3.3 Flujo 3 — Cambio de una regla de detección en operación
+
+Ejercita el escenario QS-05: una regla nueva o modificada entra en vigencia en menos de diez minutos y sin detener el sistema. Demuestra la modificabilidad declarada como QA-05 y materializa la decisión de ADR-002.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant AD as Administrador
+    participant WEB as App Web
+    participant API as API de Aplicacion
+    participant BDO as BD Operativa
+    participant BUS as Bus de Mensajeria
+    participant MR as Motor de Reglas
+
+    AD->>WEB: Modificar umbral de inactividad de un perfil
+    WEB->>API: Enviar la configuracion (HTTPS/JSON)
+    API->>API: Autorizar por rol y validar la configuracion
+    API->>BDO: Guardar como version nueva de la regla
+    BDO-->>API: Version registrada
+    API-->>WEB: Confirmacion
+    WEB-->>AD: Regla vigente
+
+    Note over API,BDO: La regla anterior se conserva.<br/>El versionado permite auditar que version<br/>evaluo cada alerta (ADR-002).
+
+    BUS->>MR: Entregar el siguiente evento del mismo adulto mayor
+    MR->>BDO: Leer reglas vigentes
+    BDO-->>MR: Version nueva
+    MR->>MR: Evaluar con la version nueva
+    MR->>BDO: Registrar la evaluacion con la version utilizada
+
+    Note over MR: Sin recompilar, sin redesplegar y sin reiniciar<br/>ningun contenedor del sistema.
+```
+
+*Figura 14 — Secuencia de sistema: cambio de una regla de detección sin interrupción*
+
+#### 7.3.4 Trazabilidad hacia los escenarios de calidad
+
+| Flujo | Escenario | Qué demuestra | Contenedores involucrados |
+|---|---|---|---|
+| Detección y notificación de evento crítico | QS-02 | El camino completo se recorre dentro del presupuesto de latencia, con respuesta inmediata de la ingesta | Ingesta, Bus, Motor de Reglas, Notificaciones, ambas bases |
+| Fallo del proveedor de notificación | QS-03 | La alerta permanece bajo custodia del bus hasta confirmarse la entrega; el fallo de un canal no la destruye | Bus, Notificaciones, BD Operativa |
+| Cambio de regla en operación | QS-05 | La configuración se modifica en caliente y la evaluación siguiente ya utiliza la versión nueva | App Web, API, BD Operativa, Motor de Reglas |
+
+Los tres flujos comparten una propiedad que conviene hacer explícita: en ningún momento un contenedor invoca sincrónicamente a otro dentro del camino crítico. Toda transición entre etapas ocurre a través del bus, lo que constituye la evidencia de comportamiento del estilo adoptado en §8 y de la decisión registrada en ADR-001.
+
+#### 7.3.5 Consistencia con las vistas anteriores
+
+Los participantes de los tres diagramas son exclusivamente contenedores declarados en §7.2 y actores o sistemas externos declarados en §7.1. No se introduce ningún elemento nuevo. Las relaciones ejercitadas —ingesta hacia el bus, bus hacia el motor, motor hacia el bus, bus hacia notificaciones, y notificaciones hacia los proveedores externos— son las mismas de la tabla de relaciones de §7.2.2, recorridas ahora en orden temporal.
 
 ---
 
