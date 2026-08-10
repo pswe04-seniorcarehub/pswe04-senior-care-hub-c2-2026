@@ -48,6 +48,7 @@
 14. [Asuntos clave de diseño](#14-asuntos-clave-de-diseño)
    - 14.1 [Sistemas distribuidos y computación en la nube](#141-sistemas-distribuidos-y-computación-en-la-nube)
    - 14.2 [Sistemas concurrentes y de tiempo real](#142-sistemas-concurrentes-y-de-tiempo-real)
+   - 14.3 [Sistemas IoT y computación en el borde](#143-sistemas-iot-y-computación-en-el-borde)
 15. [Tendencias y evolución](#15-tendencias-y-evolución)
 ---
 
@@ -1554,6 +1555,39 @@ Una segunda consecuencia afecta a la ventana de confirmación de ADR-003: cualqu
 #### 14.2.5 Verificación de las garantías temporales
 
 Las garantías de este sistema son estadísticas y por lo tanto deben verificarse por medición, no por demostración analítica. La telemetría centralizada descrita en §7.4.1, con identificador de correlación propagado extremo a extremo, permite reconstruir la latencia real de cada alerta y calcular el percentil comprometido sobre datos de operación. Sin esa instrumentación, QS-02 sería un objetivo declarado pero no verificable, lo que lo dejaría fuera de la definición de escenario de calidad medible.
+
+### 14.3 Sistemas IoT y computación en el borde
+
+#### 14.3.1 Aplicabilidad
+
+SeniorCareHub pertenece al dominio de Internet de las Cosas, y conviene declararlo sin ambigüedad aunque el dispositivo esté simulado. La estructura del sistema es la canónica de una solución IoT: dispositivos en el extremo que emiten telemetría continua sobre el mundo físico —movimiento, inactividad, ubicación de una persona—, una capa de ingesta que autentica y valida esa telemetría, un procesamiento de eventos en la nube y una capa de actuación hacia humanos mediante notificaciones. La simulación sustituye al hardware, no al dominio: ninguna decisión arquitectónica del documento cambiaría si el emisor fuera un dispositivo físico, porque la frontera del sistema se definió desde §7.1 tratando al wearable como un sistema externo que se comunica por un protocolo declarado.
+
+La pertenencia al dominio no es una observación tardía: la presencia de un asunto clave de diseño de esta categoría formó parte de los criterios de complejidad con los que se aprobó la propuesta del proyecto.
+
+#### 14.3.2 Posición actual: borde delgado deliberado
+
+En la arquitectura entregada, el borde es deliberadamente delgado: el dispositivo emite y nada más. Toda la inteligencia —validación semántica, evaluación de reglas, confirmación, deduplicación— reside en la nube. Esta posición, reconocida en §14.1.5 como límite del diseño distribuido, es una decisión y no una omisión, sostenida por tres razones.
+
+Primero, la modificabilidad de QA-05: las reglas cambian en caliente precisamente porque viven como datos en un único lugar (ADR-002). Repartir lógica de detección hacia el dispositivo fragmentaría esa propiedad, obligando a sincronizar versiones de reglas entre la nube y una flota de dispositivos con conectividad intermitente. Segundo, la auditabilidad exigida por REST-02: cada alerta registra la versión de reglas que la evaluó, garantía trivial cuando la evaluación es centralizada y costosa cuando se distribuye. Tercero, el alcance: con un emisor simulado, cualquier lógica de borde sería software especulativo sin hardware que lo valide.
+
+#### 14.3.3 Qué migraría al borde con dispositivos reales
+
+Un despliegue con wearables físicos exigiría revisar la posición anterior, porque aparecen restricciones que el simulador no impone: batería, conectividad intermitente y el costo de transmitir todo. La evolución razonable, ya anticipada en §15.2, repartiría las responsabilidades así:
+
+| Permanece en la nube | Migraría al borde |
+|---|---|
+| Evaluación de reglas configurables y su versionado | Filtrado de telemetría irrelevante (muestreo, agregación) para ahorrar batería y ancho de banda |
+| Ventana de confirmación, correlación y deduplicación | Detección local de las condiciones de criticidad inmediata (caída), para alertar aun sin conectividad |
+| Gestión de perfiles, canales y destinatarios | Almacenamiento temporal y reenvío de eventos durante pérdidas de cobertura (store-and-forward) |
+| Historial, auditoría y trazabilidad | Señalización local a la persona (vibración, sonido) como canal de última instancia |
+
+El criterio de reparto es explícito: al borde va lo que depende de la inmediatez o de la autonomía ante desconexión; en la nube queda lo que depende de la configurabilidad, la correlación entre eventos o la auditoría. La detección local de caídas es el caso más claro de migración: es la situación donde esperar el viaje a la nube cuesta más y donde la regla es más estable —una caída es una caída, con cualquier versión de configuración.
+
+#### 14.3.4 Costos que introduciría el borde
+
+La migración no sería gratuita, y conviene registrar los costos con la misma honestidad que los beneficios. La lógica de detección quedaría duplicada en dos implementaciones —la del dispositivo y la del Motor de Reglas— que deben mantenerse coherentes, reintroduciendo el problema de sincronización que la centralización evita hoy. La actualización del software del dispositivo se convertiría en una operación de despliegue adicional, con su propio ciclo de versiones y sus fallos parciales. Y el flujo de "aceptación tras persistir y publicar" documentado en §7.3.1 tendría que extenderse al tramo dispositivo-nube mediante confirmaciones y reenvío, tramo que hoy queda fuera de las garantías verificadas según se reconoce en §14.1.5.
+
+Ninguno de estos costos invalida la evolución: la acota. El estilo orientado a eventos la absorbe sin cambio estructural —el borde se convierte en un productor más inteligente, pero el transporte, la confirmación y el despacho permanecen idénticos—, lo que confirma la conclusión de §15.5 sobre la estabilidad de la decisión registrada en ADR-001.
 
 ## 15. Tendencias y evolución
 
