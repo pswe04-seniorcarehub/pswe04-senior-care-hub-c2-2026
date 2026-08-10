@@ -1,4 +1,3 @@
-```mermaid
 sequenceDiagram
     autonumber
 
@@ -8,6 +7,8 @@ sequenceDiagram
     participant ProfileRepo as INotificationProfileRepository
     participant TrackingRepo as INotificationTrackingRepository
     participant ChannelService as ChannelSelectionService
+    participant Resolver as DeliveryPolicyResolver
+    participant Strategy as ParallelDeliveryStrategy
     participant Factory as NotificationAdapterFactory
     participant Adapter as INotificationAdapter
     participant Provider as Proveedor externo
@@ -19,62 +20,84 @@ sequenceDiagram
     Consumer->>Service: ProcessAsync(alert)
     activate Service
 
-    Service->>ProfileRepo: GetByOlderAdultIdAsync(olderAdultId, profileVersion)
+    Service->>ProfileRepo: GetByOlderAdultIdAsync(alert.olderAdultId, alert.profileVersion)
     activate ProfileRepo
     ProfileRepo-->>Service: NotificationProfile
     deactivate ProfileRepo
 
     loop Por cada destinatario habilitado del perfil
-        Service->>TrackingRepo: GetByAlertAndRecipientAsync(alertId, recipientId)
+        Service->>TrackingRepo: GetByAlertAndRecipientAsync(alert.alertId, recipient.recipientId)
         activate TrackingRepo
         TrackingRepo-->>Service: null
         deactivate TrackingRepo
 
-        Note over Service: No existe una notificación previa.<br/>Se crea Notification en memoria.
+        Note over Service: No existe una notificación previa.<br/>Se crea Notification para el destinatario.
 
         Service->>Service: CreateNotification(alert, recipient)
-
-        Service->>ChannelService: SelectApplicableChannels(alert, profile, recipient)
-        activate ChannelService
-        ChannelService-->>Service: Canales aplicables ordenados por prioridad
-        deactivate ChannelService
-
-        Note over Service: Se selecciona la primera configuración<br/>de canal aplicable.
-
-        Service->>Factory: Create(channelType, providerId)
-        activate Factory
-
-        Factory->>Adapter: Supports(channelType, providerId)
-        activate Adapter
-        Adapter-->>Factory: true
-        deactivate Adapter
-
-        Factory-->>Service: INotificationAdapter compatible
-        deactivate Factory
-
-        Service->>Adapter: SendAsync(alert, recipient, channel)
-        activate Adapter
-
-        Adapter->>Provider: Solicitar envío de la notificación
-        activate Provider
-        Provider-->>Adapter: Respuesta de entrega exitosa
-        deactivate Provider
-
-        Adapter-->>Service: AdapterSendResult<br/>DeliveryStatus = Delivered
-        deactivate Adapter
-
-        Service->>Service: CreateAttempt(notification, channel)
-
-        Service->>TrackingRepo: SaveAttemptAsync(attempt)
-        activate TrackingRepo
-        TrackingRepo-->>Service: Intento registrado
-        deactivate TrackingRepo
-
-        Note over Service: Notification.Status = Delivered<br/>CompletedAt = fecha actual
+        Service->>Service: notification.MarkInProgress()
 
         Service->>TrackingRepo: SaveNotificationAsync(notification)
         activate TrackingRepo
-        TrackingRepo-->>Service: Estado almacenado
+        TrackingRepo-->>Service: Notification almacenada
+        deactivate TrackingRepo
+
+        Service->>ChannelService: SelectApplicableChannels(alert, profile, recipient)
+        activate ChannelService
+        ChannelService-->>Service: NotificationChannelCollection
+        deactivate ChannelService
+
+        Service->>Resolver: ResolveStrategy(alert, profile)
+        activate Resolver
+
+        Note over Resolver: La severidad Critical requiere<br/>una política de entrega Parallel.
+
+        Resolver-->>Service: ParallelDeliveryStrategy
+        deactivate Resolver
+
+        Service->>Strategy: ExecuteAsync(alert, recipient, channels)
+        activate Strategy
+
+        par Por cada canal aplicable
+            Strategy->>Factory: Create(channelType, providerId)
+            activate Factory
+            Factory->>Adapter: Supports(channelType, providerId)
+            activate Adapter
+            Adapter-->>Factory: true
+            deactivate Adapter
+            Factory-->>Strategy: INotificationAdapter compatible
+            deactivate Factory
+
+            Strategy->>Adapter: SendAsync(alert, recipient, channel)
+            activate Adapter
+            Adapter->>Provider: Solicitar envío de la notificación
+            activate Provider
+            Provider-->>Adapter: Solicitud aceptada
+            deactivate Provider
+            Adapter-->>Strategy: AdapterSendResult<br/>DeliveryStatus = Accepted
+            deactivate Adapter
+        and Otros canales aplicables
+            Note over Strategy,Provider: Los demás canales configurados se procesan<br/>de forma concurrente siguiendo la misma secuencia.
+        end
+
+        Strategy-->>Service: ChannelDeliveryResultCollection
+        deactivate Strategy
+
+        loop Por cada resultado de entrega
+            Service->>Service: CreateAttempt(notification, result)
+
+            Service->>TrackingRepo: SaveAttemptAsync(attempt)
+            activate TrackingRepo
+            TrackingRepo-->>Service: Intento registrado
+            deactivate TrackingRepo
+        end
+
+        Note over Service: Al menos un proveedor aceptó<br/>la solicitud de entrega.
+
+        Service->>Service: notification.MarkDelivered()
+
+        Service->>TrackingRepo: SaveNotificationAsync(notification)
+        activate TrackingRepo
+        TrackingRepo-->>Service: Estado Delivered almacenado
         deactivate TrackingRepo
     end
 
@@ -84,4 +107,3 @@ sequenceDiagram
     Consumer->>Bus: Confirmar mensaje (ACK)
 
     deactivate Consumer
-    ```
