@@ -42,6 +42,7 @@
    - 7.4 [Vista de despliegue](#74-vista-de-despliegue)
    - 7.5 [Vista de concurrencia](#75-vista-de-concurrencia)
    - 7.6 [Evolución de las vistas arquitectónicas](#76-evolución-de-las-vistas-arquitectónicas)
+   - 7.7 [Vistas de componentes](#77-vistas-de-componentes)
 8. [Estilo arquitectónico](#8-estilo-arquitectónico)
 9. [Registro de decisiones — ADRs](#9-registro-de-decisiones--adrs)
 10. [Diseño detallado de componentes](#10-diseño-detallado-de-componentes)
@@ -812,7 +813,7 @@ Las vistas de este capítulo no se produjeron de una sola vez: se construyeron y
 |---|---|---|
 | Avance 1 (S07) | 7.1 Vista de contexto | — |
 | Avance 2 (S11) | 7.2 Vista de contenedores | 7.2 (tres correcciones posteriores a la revisión interna) |
-| Entrega final (S14) | 7.3 Comportamiento, 7.4 Despliegue, 7.5 Concurrencia | — |
+| Entrega final (S14) | 7.3 Comportamiento, 7.4 Despliegue, 7.5 Concurrencia, 7.7 Componentes de dos subsistemas | — |
 
 #### 7.6.2 Vista de contexto: estabilidad deliberada
 
@@ -849,6 +850,110 @@ Documentar lo que no cambió, y por qué, forma parte del registro de evolución
 **Desagregar los proveedores de notificación por canal.** Se consideró representar por separado los proveedores de correo, SMS y mensajería. Se mantuvo la agrupación en un único sistema externo por coherencia con la vista de contexto, y porque la diferenciación por canal es una cuestión de configuración resuelta mediante adaptadores según ADR-004, no una distinción de frontera arquitectónica.
 
 **Materializar un contenedor de Gestión de Alertas.** ADR-001 identificaba inicialmente la gestión de alertas como una responsabilidad separada dentro del pipeline. Se optó por alojarla en el Motor de Reglas en lugar de crear un contenedor propio, dado que su ciclo de vida y sus datos están estrechamente ligados a la evaluación que origina la alerta. La redacción del ADR se ajustó en consecuencia para mantener la coherencia con esta vista.
+
+### 7.7 Vistas de componentes
+
+Estas vistas abren dos de los contenedores declarados en §7.2 y muestran los componentes que los constituyen: qué piezas existen dentro de cada uno, qué responsabilidad tiene cada pieza y cómo colaboran. Se documentan los dos subsistemas con mayor densidad de decisiones registradas: el **Motor de Reglas** (ADR-002 y ADR-003) y el **Servicio de Notificaciones** (ADR-004).
+
+El nivel de detalle es el intermedio de la jerarquía C4: los componentes de estas vistas agrupan las clases e interfaces cuyo diseño detallado —firmas, contratos, análisis de robustez y secuencias— se documenta en §10.1 y §10.2. La nomenclatura es la misma en ambos capítulos, de modo que cada caja de estas vistas puede rastrearse hasta sus clases en el diseño detallado.
+
+#### 7.7.1 Componentes del Motor de Reglas
+
+```mermaid
+flowchart TB
+    TE["Bus · topico de eventos crudos<br/><i>sesiones por adulto mayor</i>"]
+    TA["Bus · topico de alertas confirmadas"]
+    BDO[("BD Operativa")]
+
+    subgraph MR["Contenedor: Motor de Reglas"]
+        direction TB
+        EMC["EventMessageConsumer<br/><i>Consume la sesion con bloqueo exclusivo<br/>y coordina el ciclo del mensaje</i>"]
+        RPS["RuleProcessingService<br/><i>IRuleProcessingService · orquesta la evaluacion</i>"]
+        EV["EventValidator<br/><i>IEventValidator · valida el evento entrante</i>"]
+        REF["RuleEvaluatorFactory<br/><i>IRuleEvaluatorFactory · selecciona el evaluador<br/>segun el tipo de regla</i>"]
+        EVAL["Evaluadores de reglas · Strategy<br/><i>IRuleEvaluator: FallRuleEvaluator ·<br/>InactivityRuleEvaluator · SafeZoneRuleEvaluator</i>"]
+        CONF["ConfirmationService<br/><i>IConfirmationService · ventana de confirmacion<br/>y correlacion de eventos</i>"]
+        DEDUP["DeduplicationService<br/><i>IDeduplicationService · deduplicacion por<br/>adulto mayor, tipo y periodo</i>"]
+        REPO["Repositorios · Repository<br/><i>IMonitoringProfileRepository · IMonitoringRuleRepository ·<br/>IAlertRepository · IConfirmationStateRepository<br/>(implementaciones PostgreSql*)</i>"]
+        PUB["Publicador de alertas<br/><i>IAlertPublisher · AzureServiceBusAlertPublisher</i>"]
+    end
+
+    TE -->|"AMQP 1.0 · sesion"| EMC
+    EMC -->|"IRuleProcessingService"| RPS
+    RPS -->|"IEventValidator"| EV
+    RPS -->|"IRuleEvaluatorFactory"| REF
+    REF -->|"IRuleEvaluator"| EVAL
+    RPS -->|"IConfirmationService"| CONF
+    RPS -->|"IDeduplicationService"| DEDUP
+    RPS -->|"interfaces de repositorio"| REPO
+    CONF -->|"IConfirmationStateRepository"| REPO
+    RPS -->|"IAlertPublisher"| PUB
+    PUB -->|"AMQP 1.0"| TA
+    REPO -->|"SQL/TLS"| BDO
+
+    classDef comp fill:#438DD5,stroke:#2E6295,color:#FFFFFF
+    classDef ext fill:#999999,stroke:#6B6B6B,color:#FFFFFF
+    classDef db fill:#08427B,stroke:#052E56,color:#FFFFFF
+    class EMC,RPS,EV,REF,EVAL,CONF,DEDUP,REPO,PUB comp
+    class TE,TA ext
+    class BDO db
+```
+
+*Figura 17 — Vista de componentes (C4 · Nivel 3): Motor de Reglas*
+
+La estructura materializa las decisiones registradas: los tres evaluadores concretos tras la interfaz `IRuleEvaluator`, seleccionados por `RuleEvaluatorFactory`, son la realización del conjunto controlado de tipos de reglas de ADR-002; `ConfirmationService` y `DeduplicationService` son la etapa de confirmación de ADR-003; y la separación entre interfaces de repositorio e implementaciones `PostgreSql*` mantiene la lógica de evaluación independiente de la tecnología de persistencia. `EventMessageConsumer` es el único componente que conoce el bus: el resto del contenedor ignora de dónde provienen los eventos, lo que permite probarlo sin infraestructura de mensajería.
+
+#### 7.7.2 Componentes del Servicio de Notificaciones
+
+```mermaid
+flowchart TB
+    TA2["Bus · topico de alertas confirmadas"]
+    BDO2[("BD Operativa")]
+    PROV["Servicios de notificacion externos"]
+
+    subgraph SN["Contenedor: Servicio de Notificaciones"]
+        direction TB
+        AMC["AlertMessageConsumer<br/><i>Consume la alerta confirmada y<br/>coordina el ciclo del mensaje</i>"]
+        NPS["NotificationProcessingService<br/><i>INotificationProcessingService · orquesta el despacho</i>"]
+        DPR["DeliveryPolicyResolver<br/><i>Resuelve la politica de entrega<br/>segun el perfil y la criticidad</i>"]
+        CSS["ChannelSelectionService<br/><i>Ordena los canales por prioridad<br/>para el destinatario</i>"]
+        STRAT["Estrategias de entrega · Strategy<br/><i>IChannelDeliveryStrategy:<br/>PriorityFallbackDeliveryStrategy ·<br/>ParallelDeliveryStrategy</i>"]
+        NAF["NotificationAdapterFactory<br/><i>Crea el adaptador del canal seleccionado</i>"]
+        ADAP["Adaptadores de proveedor · Adapter<br/><i>INotificationAdapter: EmailNotificationAdapter ·<br/>SmsNotificationAdapter ·<br/>InstantMessagingNotificationAdapter</i>"]
+        REPO2["Repositorios · Repository<br/><i>INotificationProfileRepository ·<br/>INotificationTrackingRepository<br/>(implementaciones PostgreSql*)</i>"]
+    end
+
+    TA2 -->|"AMQP 1.0"| AMC
+    AMC -->|"INotificationProcessingService"| NPS
+    NPS -->|"resuelve politica"| DPR
+    NPS -->|"ordena canales"| CSS
+    NPS -->|"IChannelDeliveryStrategy"| STRAT
+    STRAT -->|"solicita adaptador"| NAF
+    NAF -->|"INotificationAdapter"| ADAP
+    ADAP -->|"HTTPS/REST y SMTP"| PROV
+    NPS -->|"interfaces de repositorio"| REPO2
+    STRAT -->|"INotificationTrackingRepository"| REPO2
+    REPO2 -->|"SQL/TLS"| BDO2
+
+    classDef comp fill:#438DD5,stroke:#2E6295,color:#FFFFFF
+    classDef ext fill:#999999,stroke:#6B6B6B,color:#FFFFFF
+    classDef db fill:#08427B,stroke:#052E56,color:#FFFFFF
+    class AMC,NPS,DPR,CSS,STRAT,NAF,ADAP,REPO2 comp
+    class TA2,PROV ext
+    class BDO2 db
+```
+
+*Figura 18 — Vista de componentes (C4 · Nivel 3): Servicio de Notificaciones*
+
+> Fuente editable de ambas vistas en notación C4 formal: `diagramas/c4-componentes.puml`.
+
+La cadena de despacho materializa ADR-004 de extremo a extremo: `DeliveryPolicyResolver` y `ChannelSelectionService` deciden el qué y el en qué orden; la estrategia de entrega —`PriorityFallbackDeliveryStrategy` para el escalamiento por canal alterno del flujo de §7.3.2, o `ParallelDeliveryStrategy` cuando la política exige todos los canales a la vez— decide el cómo; y los adaptadores concretos tras `INotificationAdapter` aíslan cada proveedor externo, de modo que incorporar un canal nuevo consiste en agregar un adaptador sin tocar la orquestación. `INotificationTrackingRepository` registra cada intento y su resultado, sosteniendo tanto la clave de idempotencia de §7.5.2 como la bitácora de auditoría.
+
+#### 7.7.3 Consistencia con las vistas y el diseño detallado
+
+**Hacia arriba (§7.2):** cada vista abre exactamente un contenedor declarado en la vista de contenedores, y sus dependencias externas —los tópicos del bus, la BD Operativa y los proveedores— son las mismas relaciones que la tabla de §7.2.2 asigna a esos contenedores, sin agregar ni omitir ninguna. Los componentes no cruzan la frontera de su contenedor: la única comunicación entre el Motor de Reglas y el Servicio de Notificaciones sigue siendo el tópico de alertas confirmadas, coherente con la propiedad de §7.3.4 de que ningún contenedor invoca sincrónicamente a otro.
+
+**Hacia abajo (§10):** los componentes de estas vistas agrupan las clases, interfaces y enumeraciones del diseño detallado con su misma nomenclatura. Las cajas compuestas agrupan familias completas: los evaluadores concretos bajo `IRuleEvaluator`, los adaptadores bajo `INotificationAdapter`, y las implementaciones `PostgreSql*` bajo sus interfaces de repositorio. Los contratos de §10.1.2 y §10.2.2 corresponden a las flechas de estas vistas: cada relación entre componentes está respaldada por una interfaz con firma documentada. Las entidades (`MonitoringEvent`, `Alert`, `Notification`, entre otras) y las enumeraciones no se representan como componentes porque no son unidades de comportamiento sino datos que circulan entre ellas; su detalle corresponde al nivel de clases.
 
 ---
 
