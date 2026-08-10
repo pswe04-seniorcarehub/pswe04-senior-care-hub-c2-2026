@@ -39,6 +39,7 @@
    - 7.1 [Vista de contexto](#71-vista-de-contexto)
    - 7.2 [Vista de contenedores](#72-vista-de-contenedores)
    - 7.3 [Vista de comportamiento](#73-vista-de-comportamiento)
+   - 7.4 [Vista de despliegue](#74-vista-de-despliegue)
 8. [Estilo arquitectónico](#8-estilo-arquitectónico)
 9. [Registro de decisiones — ADRs](#9-registro-de-decisiones--adrs)
 10. [Diseño detallado de componentes](#10-diseño-detallado-de-componentes)
@@ -579,6 +580,113 @@ Los tres flujos comparten una propiedad que conviene hacer explícita: en ningú
 #### 7.3.5 Consistencia con las vistas anteriores
 
 Los participantes de los tres diagramas son exclusivamente contenedores declarados en §7.2 y actores o sistemas externos declarados en §7.1. No se introduce ningún elemento nuevo. Las relaciones ejercitadas —ingesta hacia el bus, bus hacia el motor, motor hacia el bus, bus hacia notificaciones, y notificaciones hacia los proveedores externos— son las mismas de la tabla de relaciones de §7.2.2, recorridas ahora en orden temporal.
+
+### 7.4 Vista de despliegue
+
+Esta vista muestra la infraestructura sobre la que se ejecutan los contenedores definidos en §7.2, la correspondencia entre cada contenedor y su nodo de ejecución, y las decisiones de dimensionamiento que responden a los atributos de calidad del sistema.
+
+Todos los recursos gestionados se agrupan en un único grupo de recursos, `rg-seniorcarehub`, desplegado en la región **East US 2** por ser la de menor latencia de red hacia Costa Rica entre las regiones con disponibilidad completa de los servicios utilizados. La agrupación en un solo grupo de recursos permite además aprovisionar y eliminar el entorno completo como una unidad, lo que resulta conveniente para un despliegue de duración acotada.
+
+```mermaid
+flowchart TB
+    subgraph CLI["Fuera de la nube"]
+        direction TB
+        NAV["Dispositivo del usuario<br/>Navegador web"]
+        SIM["Estacion de simulacion<br/>Contenedor Docker · .NET"]
+    end
+
+    subgraph AZ["Azure · East US 2 · rg-seniorcarehub"]
+        direction TB
+        SWA["Azure Static Web Apps<br/><i>Free</i>"]
+        subgraph ASP["App Service Plan Linux B1"]
+            direction TB
+            API["API de Aplicacion"]
+            ING["Servicio de Ingesta"]
+        end
+        subgraph ACA["Entorno de Azure Container Apps"]
+            direction TB
+            REG["Motor de Reglas<br/><i>min 1 replica</i>"]
+            NOT["Servicio de Notificaciones<br/><i>min 1 replica</i>"]
+        end
+        SB["Azure Service Bus<br/><i>Standard</i>"]
+        subgraph PG["PostgreSQL Flexible Server B1ms"]
+            direction TB
+            BDO[("BD Operativa")]
+            BDE[("Almacen de Eventos")]
+        end
+        KV["Azure Key Vault"]
+        AI["Application Insights<br/>+ Log Analytics"]
+    end
+
+    EXT["Servicios de notificacion<br/><i>proveedores externos</i>"]
+
+    NAV -->|"HTTPS"| SWA
+    SWA -->|"HTTPS/JSON"| API
+    SIM -->|"HTTPS/TLS"| ING
+
+    ING -->|"AMQP 1.0"| SB
+    SB -->|"AMQP 1.0"| REG
+    REG -->|"AMQP 1.0"| SB
+    SB -->|"AMQP 1.0"| NOT
+    NOT -->|"HTTPS y SMTP"| EXT
+
+    API -->|"SQL/TLS"| BDO
+    REG -->|"SQL/TLS"| BDO
+    NOT -->|"SQL/TLS"| BDO
+    ING -->|"SQL/TLS"| BDE
+    API -->|"SQL/TLS"| BDE
+
+    API -.->|"telemetria"| AI
+    ING -.->|"telemetria"| AI
+    REG -.->|"telemetria"| AI
+    NOT -.->|"telemetria"| AI
+
+    API -.->|"secretos"| KV
+    ING -.->|"secretos"| KV
+    REG -.->|"secretos"| KV
+    NOT -.->|"secretos"| KV
+
+    classDef nube fill:#438DD5,stroke:#2E6295,color:#FFFFFF
+    classDef fuera fill:#08427B,stroke:#052E56,color:#FFFFFF
+    classDef ext fill:#999999,stroke:#6B6B6B,color:#FFFFFF
+    class SWA,API,ING,REG,NOT,SB,BDO,BDE,KV,AI nube
+    class NAV,SIM fuera
+    class EXT ext
+```
+
+*Figura 15 — Vista de despliegue de SeniorCareHub sobre Microsoft Azure*
+
+> **Leyenda.** Azul oscuro: nodos fuera de la nube. Azul claro: recursos gestionados de Azure. Gris: proveedores externos. Las líneas continuas representan el flujo funcional; las punteadas, dependencias transversales de telemetría y gestión de secretos.
+>
+> Fuente editable en notación e iconografía C4 formal: `diagramas/c4-despliegue.puml`.
+
+#### 7.4.1 Nodos de despliegue
+
+| Nodo | Servicio y dimensionamiento | Contenedores alojados (§7.2) | Justificación |
+|---|---|---|---|
+| Dispositivo del usuario | Navegador web | App Web (ejecución) | La SPA se descarga y ejecuta en el cliente; no requiere cómputo en la nube. |
+| Estación de simulación | Contenedor Docker con aplicación .NET | Simulador de wearable (sistema externo) | Sustituye al dispositivo físico. Se ejecuta fuera de la nube para representar fielmente a un emisor externo al sistema. |
+| Azure Static Web Apps | Nivel Free | App Web (distribución) | Distribuye los archivos estáticos con certificado TLS gestionado. El nivel gratuito es suficiente porque no ejecuta lógica de servidor. |
+| App Service Plan Linux | B1 (1 vCPU, 1.75 GB) | API de Aplicación, Servicio de Ingesta | Ambos son servicios web con carga moderada y exposición HTTP directa. Comparten plan para contener el costo. |
+| Entorno de Azure Container Apps | Consumo, mínimo 1 réplica por aplicación | Motor de Reglas, Servicio de Notificaciones | Procesos consumidores de larga duración, sin exposición pública, con escalado independiente por profundidad de cola. |
+| Azure Service Bus | Namespace tier Standard | Bus de Mensajería | El tier Standard es el mínimo que ofrece tópicos con suscripciones múltiples, sesiones ordenadas y detección de duplicados. |
+| PostgreSQL Flexible Server | B1ms, almacenamiento 32 GB | BD Operativa, Almacén de Eventos | Un mismo servidor aloja ambas bases lógicas. El volumen previsto no justifica dos servidores independientes. |
+| Azure Key Vault | Estándar | — | Custodia cadenas de conexión y credenciales de proveedores externos. |
+| Application Insights y Log Analytics | Pago por ingesta | — | Recibe trazas correlacionadas de los cuatro servicios y sostiene la depuración distribuida exigida por el estilo (§8.4). |
+
+#### 7.4.2 Decisiones de despliegue y sus trade-offs
+
+**Réplica mínima permanente en Container Apps.** Azure Container Apps permite reducir a cero réplicas y no facturar cómputo en reposo. Se descarta esa configuración para el Motor de Reglas y el Servicio de Notificaciones porque el arranque en frío introduce una demora de varios segundos que consumiría el presupuesto completo de QS-02, cuya meta es de 5 segundos en el percentil 95. Se acepta el costo de mantener una réplica activa de forma permanente a cambio de latencia predecible. El escalado hacia arriba sí es automático, gobernado por la profundidad de la suscripción del bus.
+
+**Plan de App Service compartido entre API e Ingesta.** Ambos servicios web comparten un mismo plan B1, lo que reduce el costo respecto de dos planes independientes. La contrapartida es que comparten CPU y memoria: una ráfaga sostenida de eventos entrantes podría degradar el tiempo de respuesta de las consultas del dashboard. Se acepta el riesgo porque los perfiles de carga previstos son moderados, y la mitigación está identificada: separar la ingesta a un plan propio, cambio que no afecta a ningún otro contenedor por tratarse de servicios ya desacoplados.
+
+**Identidades administradas en lugar de credenciales en configuración.** El acceso de los servicios a Service Bus, PostgreSQL y Key Vault se realiza mediante identidades administradas de Microsoft Entra ID, de modo que ninguna credencial persiste en archivos de configuración ni en variables de entorno del despliegue. Esta decisión responde directamente a QA-04 y a la obligación de resguardo de datos personales de REST-02, y reduce la superficie expuesta ante una filtración de configuración.
+
+**Instancia única sin redundancia de zona.** Los servicios se despliegan en una sola zona de disponibilidad. La redundancia de zona multiplicaría el costo de PostgreSQL y del namespace de mensajería, y la meta comprometida en QS-01 es de 99.5 % mensual, equivalente a poco menos de 3.6 horas de indisponibilidad, alcanzable con la configuración descrita. El dimensionamiento se realizó contra la meta declarada y no por encima de ella; elevar el objetivo de disponibilidad exigiría revisar esta decisión antes que cualquier otra.
+
+#### 7.4.3 Consistencia con la vista de contenedores
+
+Los ocho contenedores de §7.2 tienen exactamente un nodo de ejecución asignado y no se introduce ningún contenedor nuevo. La App Web aparece dos veces con roles distintos —distribuida desde Static Web Apps y ejecutada en el navegador del usuario—, lo que corresponde a la naturaleza de una aplicación de página única. El Bus de Mensajería se materializa en el namespace de Service Bus, y las dos bases de datos comparten servidor sin dejar de ser almacenes lógicamente separados, tal como se representó en §7.2. Los proveedores externos de notificación conservan su condición de sistemas fuera del alcance del equipo, coherente con §7.1. Key Vault y Application Insights no corresponden a contenedores del nivel 2: son servicios de plataforma transversales que sostienen decisiones ya documentadas en §8.4 sobre observabilidad y gestión de secretos.
 
 ---
 
