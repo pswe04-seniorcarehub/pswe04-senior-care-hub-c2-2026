@@ -48,6 +48,7 @@
 14. [Asuntos clave de diseño](#14-asuntos-clave-de-diseño)
    - 14.1 [Sistemas distribuidos y computación en la nube](#141-sistemas-distribuidos-y-computación-en-la-nube)
    - 14.2 [Sistemas concurrentes y de tiempo real](#142-sistemas-concurrentes-y-de-tiempo-real)
+15. [Tendencias y evolución](#15-tendencias-y-evolución)
 ---
 
 # BLOQUE 1 — CONTEXTO Y PROBLEMA
@@ -1547,6 +1548,69 @@ Una segunda consecuencia afecta a la ventana de confirmación de ADR-003: cualqu
 #### 14.2.5 Verificación de las garantías temporales
 
 Las garantías de este sistema son estadísticas y por lo tanto deben verificarse por medición, no por demostración analítica. La telemetría centralizada descrita en §7.4.1, con identificador de correlación propagado extremo a extremo, permite reconstruir la latencia real de cada alerta y calcular el percentil comprometido sobre datos de operación. Sin esa instrumentación, QS-02 sería un objetivo declarado pero no verificable, lo que lo dejaría fuera de la definición de escenario de calidad medible.
+
+## 15. Tendencias y evolución
+
+### 15.1 Criterio de selección
+
+Una sección de tendencias tiene poco valor si enumera tecnologías de moda sin relación con el sistema analizado. El criterio aplicado aquí es distinto: se incluyen únicamente aquellas tendencias que, de consolidarse, **modificarían una decisión ya tomada en este documento**. Cada apartado señala qué decisión pondría en cuestión y qué evidencia justificaría revisarla.
+
+### 15.2 Tendencias con impacto sobre la arquitectura
+
+#### Detección basada en modelos de aprendizaje automático
+
+El sistema detecta situaciones críticas mediante reglas configuradas con parámetros explícitos (ADR-002). La alternativa emergente es sustituir o complementar esas reglas con modelos entrenados sobre patrones de movimiento, capaces de reconocer situaciones que ninguna regla anticipó y de reducir falsas alarmas mediante el reconocimiento del comportamiento habitual de cada persona.
+
+El trade-off es de explicabilidad. Una regla puede responder por qué generó una alerta: el umbral de inactividad se superó durante un intervalo determinado. Un modelo entrega una puntuación sin justificación equivalente. En un dominio donde una alerta desencadena la intervención sobre una persona vulnerable, y donde la trazabilidad de la decisión es exigible ante una disputa, la explicabilidad no es una preferencia estética sino un requisito. A ello se suma que los marcos regulatorios sobre decisiones automatizadas que afectan a personas avanzan hacia mayores obligaciones de transparencia, lo que interactúa directamente con REST-02.
+
+El propio ADR-003 ya prevé esta revisión al establecer que corresponde reconsiderar la decisión si las métricas muestran que las reglas configurables no alcanzan la exactitud necesaria. La evolución razonable no es sustituir las reglas sino añadir un modelo como señal adicional dentro de la etapa de confirmación, conservando la regla como criterio auditable.
+
+#### Procesamiento en el borde
+
+Actualmente todo evento viaja íntegro a la nube antes de ser evaluado, incluidos los que ninguna regla llegará a considerar. La tendencia hacia el procesamiento en el dispositivo permitiría filtrar localmente, detectar en el borde las condiciones más críticas y transmitir solo lo relevante.
+
+El impacto sobre la arquitectura sería significativo: reduciría el volumen transportado, disminuiría la dependencia de la conectividad —hoy un supuesto no verificado, según se reconoce en §14.1.5— y acortaría la latencia de las alertas más urgentes al eliminar el trayecto de ida hacia la nube. La contrapartida es que la lógica de detección se fragmentaría entre el dispositivo y el servidor, con el consiguiente problema de mantener sincronizadas dos implementaciones de la misma regla y de actualizar el software del dispositivo. Las implicaciones se desarrollan en §14.3.
+
+#### Registro de eventos como fuente de verdad
+
+El Almacén de Eventos ya conserva el historial completo de lo recibido, lo que aproxima al sistema a un modelo donde el registro de eventos es la fuente primaria y los estados derivados se reconstruyen a partir de él. Adoptarlo formalmente permitiría reprocesar el historial con reglas nuevas —por ejemplo, para evaluar si una regla propuesta habría detectado un incidente pasado— y auditar cualquier alerta reconstruyendo el contexto exacto que la originó.
+
+Es la evolución más natural del diseño actual porque no exige cambiar el estilo: el intermediario y el almacén ya están en su lugar. Lo que cambiaría es el tratamiento de la BD Operativa, que pasaría de fuente de verdad a proyección reconstruible.
+
+#### Reducción del costo de arranque en las plataformas gestionadas
+
+La decisión de mantener una réplica permanentemente activa (§7.4.2) responde a que el arranque en frío consume el presupuesto de latencia de QS-02. Es una decisión condicionada por el estado actual de la tecnología, no por una propiedad del dominio. Si las plataformas de ejecución bajo demanda reducen ese tiempo a magnitudes despreciables frente al presupuesto disponible, la decisión debe revisarse: se recuperaría el costo nulo en reposo sin sacrificar latencia. Es la tendencia con el camino de adopción más corto de todas las señaladas.
+
+#### Interoperabilidad con sistemas clínicos
+
+El sistema opera hoy de forma aislada respecto del ecosistema de salud. La adopción creciente de estándares de interoperabilidad para el intercambio de información clínica abre la posibilidad de que el historial de eventos y alertas se integre con expedientes médicos o con servicios de atención domiciliaria. Ese cambio no afectaría el camino crítico, pero sí exigiría revisar el modelo de datos y, sobre todo, el régimen de consentimiento y de tratamiento de datos personales, dado que el destinatario dejaría de ser un familiar para ser una institución.
+
+### 15.3 Evolución prevista del sistema
+
+| Horizonte | Evolución | Efecto sobre la arquitectura |
+|---|---|---|
+| Corto plazo | Instrumentar y validar QS-02 con mediciones reales; sustituir el simulador por dispositivos físicos | Ninguno estructural. Confirma o refuta el presupuesto de latencia estimado en §14.2.3 |
+| Corto plazo | Incorporar canales de notificación adicionales | Ninguno: se resuelve agregando adaptadores según ADR-004 |
+| Mediano plazo | Preprocesamiento en el borde | Nuevo componente en el dispositivo; la lógica de detección se reparte |
+| Mediano plazo | Operación multiinquilino para organizaciones de cuidado | Aislamiento de datos por inquilino; afecta el modelo de datos y la autorización, no el estilo |
+| Largo plazo | Detección asistida por modelos con explicabilidad | Nuevo evaluador dentro del Motor de Reglas; el contrato de la interfaz de evaluación se mantiene |
+| Largo plazo | Despliegue multirregión | Revisión completa de §7.4: replicación de datos y consistencia entre regiones |
+
+### 15.4 Condiciones que obligarían a revisar la arquitectura
+
+Siguiendo el criterio de los ADR, conviene declarar de forma explícita qué evidencia obligaría a reabrir las decisiones estructurales:
+
+- Que la medición demuestre que el percentil 95 de latencia excede los cinco segundos de forma sostenida, y que el análisis atribuya la causa al procesamiento interno y no al proveedor externo.
+- Que el número de adultos mayores con eventos simultáneos supere el techo de paralelismo impuesto por el particionamiento por sesión (§7.5.3).
+- Que el dominio exija garantías temporales duras en lugar de estadísticas, lo que invalidaría la clasificación de tiempo real blando de §14.2.2.
+- Que aparezca un requisito de continuidad ante caída regional, que la decisión de zona única no puede satisfacer.
+- Que los usuarios necesiten expresar reglas arbitrarias fuera del conjunto de evaluadores disponibles, condición ya prevista en ADR-002.
+
+### 15.5 Lo que permanecería
+
+Conviene cerrar señalando qué resistiría a todas las evoluciones anteriores. El estilo orientado a eventos con intermediario durable sobrevive a cada uno de los escenarios planteados: el procesamiento en el borde cambia dónde se origina el evento pero no cómo se transporta; los modelos de aprendizaje cambian cómo se evalúa pero no dónde; la interoperabilidad clínica agrega consumidores sin modificar productores. Esa estabilidad es, en sí misma, evidencia a favor de la decisión registrada en ADR-001: un estilo cuya vigencia no depende de qué tecnología se imponga en la siguiente década.
+
+La frontera de puertos y adaptadores adoptada en §8.1 cumple una función equivalente en la dimensión tecnológica: absorbe el cambio de proveedores, de canales y eventualmente de plataforma de mensajería sin propagarlo hacia la lógica de detección, que es donde reside el valor del sistema.
 
 
 *Documento generado bajo el template estándar PSWE-04 — Universidad Cenfotec — Maestría Profesional en Ingeniería del Software*
