@@ -40,6 +40,7 @@
    - 7.2 [Vista de contenedores](#72-vista-de-contenedores)
    - 7.3 [Vista de comportamiento](#73-vista-de-comportamiento)
    - 7.4 [Vista de despliegue](#74-vista-de-despliegue)
+   - 7.5 [Vista de concurrencia](#75-vista-de-concurrencia)
 8. [Estilo arquitectónico](#8-estilo-arquitectónico)
 9. [Registro de decisiones — ADRs](#9-registro-de-decisiones--adrs)
 10. [Diseño detallado de componentes](#10-diseño-detallado-de-componentes)
@@ -687,6 +688,107 @@ flowchart TB
 #### 7.4.3 Consistencia con la vista de contenedores
 
 Los ocho contenedores de §7.2 tienen exactamente un nodo de ejecución asignado y no se introduce ningún contenedor nuevo. La App Web aparece dos veces con roles distintos —distribuida desde Static Web Apps y ejecutada en el navegador del usuario—, lo que corresponde a la naturaleza de una aplicación de página única. El Bus de Mensajería se materializa en el namespace de Service Bus, y las dos bases de datos comparten servidor sin dejar de ser almacenes lógicamente separados, tal como se representó en §7.2. Los proveedores externos de notificación conservan su condición de sistemas fuera del alcance del equipo, coherente con §7.1. Key Vault y Application Insights no corresponden a contenedores del nivel 2: son servicios de plataforma transversales que sostienen decisiones ya documentadas en §8.4 sobre observabilidad y gestión de secretos.
+
+### 7.5 Vista de concurrencia
+
+Esta vista describe qué unidades de ejecución operan simultáneamente en SeniorCareHub, qué recursos comparten, dónde aparece contención y qué mecanismos garantizan que el procesamiento concurrente no comprometa la corrección de las alertas.
+
+El sistema es concurrente por naturaleza: múltiples adultos mayores emiten eventos al mismo tiempo, y cada etapa del pipeline definido en §8 escala de forma independiente. El desafío central no es el volumen, sino el orden: la etapa de confirmación descrita en ADR-003 mantiene estado temporal por persona monitoreada, y evaluar dos eventos de un mismo adulto mayor en paralelo produciría alertas duplicadas o, peor, la pérdida de una confirmación válida.
+
+```mermaid
+flowchart TB
+    ING["Servicio de Ingesta<br/><i>sin estado · N instancias</i>"]
+
+    subgraph BUS["Bus de Mensajeria"]
+        direction TB
+        TE["Topico: eventos crudos<br/><i>con sesiones</i>"]
+        TA["Topico: alertas confirmadas<br/><i>sin sesiones</i>"]
+    end
+
+    subgraph SES["Sesiones activas · una por adulto mayor"]
+        direction LR
+        S1["sesion AM-001"]
+        S2["sesion AM-002"]
+        S3["sesion AM-003"]
+    end
+
+    subgraph MR["Motor de Reglas · replicas"]
+        direction LR
+        R1["replica 1"]
+        R2["replica 2"]
+    end
+
+    subgraph SN["Servicio de Notificaciones · replicas"]
+        direction LR
+        N1["replica 1"]
+        N2["replica 2"]
+    end
+
+    EST[("BD Operativa<br/>estado de confirmacion<br/>+ reglas + alertas")]
+
+    ING -->|"publica con<br/>SessionId = id adulto mayor"| TE
+    TE --> S1
+    TE --> S2
+    TE --> S3
+
+    S1 -->|"lock exclusivo"| R1
+    S2 -->|"lock exclusivo"| R1
+    S3 -->|"lock exclusivo"| R2
+
+    R1 -->|"lee y persiste estado"| EST
+    R2 -->|"lee y persiste estado"| EST
+
+    R1 -->|"publica alerta"| TA
+    R2 -->|"publica alerta"| TA
+
+    TA -->|"consumidores<br/>en competencia"| N1
+    TA -->|"consumidores<br/>en competencia"| N2
+
+    classDef proc fill:#438DD5,stroke:#2E6295,color:#FFFFFF
+    classDef ses fill:#0E7C86,stroke:#0A5A61,color:#FFFFFF
+    classDef db fill:#08427B,stroke:#052E56,color:#FFFFFF
+    class ING,R1,R2,N1,N2,TE,TA proc
+    class S1,S2,S3 ses
+    class EST db
+```
+
+*Figura 16 — Vista de concurrencia: particionamiento por sesión y consumidores en competencia*
+
+> **Leyenda.** Azul claro: unidades de ejecución concurrentes. Verde azulado: sesiones lógicas del bus, una por adulto mayor. Azul oscuro: estado compartido persistente.
+
+#### 7.5.1 Unidades de concurrencia
+
+| Unidad | Multiplicidad | Disparador | Estado que mantiene | Aislamiento |
+|---|---|---|---|---|
+| Servicio de Ingesta | N instancias tras el balanceador del App Service | Petición HTTP del wearable | Ninguno | No requiere: es un servicio sin estado. |
+| Motor de Reglas | N réplicas, escaladas por profundidad de la suscripción | Mensaje disponible en la suscripción con sesión | Ventana de confirmación por adulto mayor | Sesión con bloqueo exclusivo: una sesión es atendida por una sola réplica a la vez. |
+| Servicio de Notificaciones | N réplicas | Alerta confirmada disponible | Ninguno entre mensajes | Consumidores en competencia sin orden garantizado, porque el despacho de dos alertas distintas es independiente. |
+| API de Aplicación | N instancias | Petición HTTP del usuario | Ninguno | Transacciones de base de datos para lecturas y escrituras de configuración. |
+
+#### 7.5.2 Recursos compartidos y puntos de contención
+
+| Recurso compartido | Quién lo accede concurrentemente | Riesgo | Mecanismo de control |
+|---|---|---|---|
+| Estado de la ventana de confirmación | Réplicas del Motor de Reglas | Dos eventos del mismo adulto mayor evaluados en paralelo generan alertas duplicadas o pierden una confirmación | Particionamiento por sesión: el bloqueo exclusivo de sesión garantiza que solo una réplica evalúe a esa persona en un momento dado |
+| Configuración de reglas y perfiles | Motor de Reglas (lectura), API (escritura) | Una evaluación en curso podría usar una regla a medio actualizar | Versionado de reglas según ADR-002: cada evaluación fija la versión al inicio y la registra en la alerta |
+| BD Operativa | Motor de Reglas, Servicio de Notificaciones, API | Agotamiento del pool de conexiones al escalar réplicas | Dimensionamiento del pool por réplica contra el límite de conexiones del servidor B1ms |
+| Registro de acuses de entrega | Réplicas del Servicio de Notificaciones | Doble envío ante reentrega del mismo mensaje | Clave de idempotencia por alerta y canal: el segundo intento detecta el acuse ya registrado y no reenvía |
+
+#### 7.5.3 Decisiones de sincronización
+
+**Particionamiento por sesión en lugar de bloqueos explícitos.** La ordenación se resuelve en la infraestructura de mensajería y no en el código: el Servicio de Ingesta publica cada evento con el identificador del adulto mayor como identificador de sesión, y el bus garantiza que los mensajes de una misma sesión se entreguen en orden a un único consumidor con bloqueo exclusivo. El Motor de Reglas nunca necesita bloqueos ni semáforos sobre el estado de confirmación, porque no existe acceso concurrente a la partición que atiende. El trade-off es que el paralelismo máximo efectivo queda acotado por el número de adultos mayores con eventos activos: agregar réplicas más allá de esa cifra no incrementa el rendimiento. Para el volumen previsto es una restricción holgada.
+
+**El estado de confirmación se persiste, no reside solo en memoria.** ADR-003 dejó abierta la recuperación del estado temporal tras un reinicio. Se decide persistir el estado de cada ventana de confirmación en la BD Operativa, con el identificador del adulto mayor como clave, y actualizarlo en la misma transacción en que se registra la evaluación. Al tomar una sesión, la réplica lee el estado vigente antes de evaluar. De este modo, si una réplica termina de forma abrupta, el bus libera el bloqueo y otra réplica retoma la sesión desde el último estado confirmado, en lugar de comenzar la ventana desde cero y arriesgar la pérdida de una alerta —lo que comprometería QS-03. El costo es una escritura adicional por evaluación, admisible dentro del presupuesto de latencia de QS-02.
+
+**Duración del bloqueo dimensionada por encima del tiempo de evaluación.** El bus mantiene el mensaje bloqueado durante un intervalo acotado mientras el consumidor lo procesa. Si la evaluación excediera ese intervalo, el mensaje se reentregaría y produciría una evaluación duplicada. Se establece que la duración del bloqueo debe superar con margen el tiempo de evaluación observado en el percentil 99, y que el consumidor renueve el bloqueo en operaciones prolongadas. Esta es una condición de configuración que debe verificarse durante las pruebas y no una propiedad garantizada por el diseño.
+
+**Idempotencia como requisito transversal.** Por la semántica de entrega al menos una vez documentada en §8.4, todo consumidor debe tolerar recibir el mismo mensaje más de una vez. En el Motor de Reglas esto se resuelve con la deduplicación por adulto mayor, tipo de evento y período establecida en ADR-003; en el Servicio de Notificaciones, con la clave de idempotencia por alerta y canal. Ningún consumidor puede asumir procesamiento exactamente una vez.
+
+**Ausencia de orden en el despacho de notificaciones.** El tópico de alertas confirmadas no utiliza sesiones. Dos alertas de personas distintas, o incluso dos alertas sucesivas de la misma persona, pueden despacharse en paralelo y en cualquier orden, porque cada notificación es independiente y lleva su propia referencia a los eventos que la originaron. Renunciar al orden en esta etapa maximiza el paralelismo justo donde la latencia importa, sin afectar la corrección.
+
+#### 7.5.4 Consistencia con las vistas anteriores
+
+Las unidades de concurrencia descritas corresponden exactamente a los contenedores de §7.2 y a los nodos de ejecución de §7.4: las réplicas del Motor de Reglas y del Servicio de Notificaciones son las instancias del entorno de Container Apps, y las instancias de la API y la Ingesta son las del App Service Plan compartido. Las sesiones no constituyen un contenedor adicional, sino una característica del Bus de Mensajería ya declarada en la tabla de contenedores de §7.2.1 y justificada en §8.
 
 ---
 
