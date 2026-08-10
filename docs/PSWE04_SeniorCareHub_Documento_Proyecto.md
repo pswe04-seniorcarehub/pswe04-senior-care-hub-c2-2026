@@ -496,7 +496,7 @@ sequenceDiagram
     SN->>BDO: Registrar acuse de entrega
     SN->>BUS: Completar la alerta
 
-    Note over WE,FA: Presupuesto extremo a extremo: 5 s en el percentil 95 (QS-02).
+    Note over ING,PR: Ventana medida por QS-02: de la aceptacion durable del evento<br/>a la aceptacion por el primer proveedor: 5 s (p95), 8 s (p99).
 ```
 
 *Figura 12 — Secuencia de sistema: detección y notificación de un evento crítico*
@@ -505,7 +505,7 @@ El orden de las operaciones de la ingesta no es casual: la aceptación se emite 
 
 #### 7.3.2 Flujo 2 — Fallo del proveedor de notificación
 
-Ejercita el escenario QS-03: ante la indisponibilidad de un proveedor, ninguna alerta crítica se pierde y la entrega se completa por un canal alterno en menos de diez segundos. Es el flujo que justifica el estilo adoptado en §8.
+Ejercita el escenario QS-03: ante la indisponibilidad de un proveedor, ninguna alerta crítica se pierde y el primer intento por un canal alterno comienza en menos de diez segundos en el percentil 95. Es el flujo que justifica el estilo adoptado en §8.
 
 ```mermaid
 sequenceDiagram
@@ -1640,6 +1640,8 @@ Descomponer el objetivo de cinco segundos permite identificar dónde se consume 
 | Resolución de destinatarios y canales | ~200 ms | Lectura del perfil de notificación |
 | **Invocación al proveedor externo** | **1 000 – 3 000 ms** | **Etapa dominante y fuera del control del equipo** |
 | Margen disponible | ~1 100 ms | Absorbe variabilidad y reintentos internos |
+
+Conviene precisar los límites de la ventana que QS-02 efectivamente mide: el reloj inicia en la aceptación durable del evento y se detiene cuando el primer proveedor acepta la solicitud. La etapa de recepción y persistencia queda por lo tanto fuera de la ventana medida y opera como holgura adicional, y la entrega final al destinatario tampoco se contabiliza. El escenario acota además el percentil 99 a 8 segundos, lo que confirma el carácter estadístico —y no absoluto— de la garantía analizada en §14.2.2.
 
 La conclusión relevante es que el tramo bajo control del equipo consume aproximadamente el veinte por ciento del presupuesto, mientras que la invocación al proveedor externo domina el resto. Optimizar el procesamiento interno tendría un efecto marginal sobre QS-02; en cambio, la elección del proveedor, la configuración de su tiempo límite y el orden de prioridad de canales son las palancas que efectivamente determinan el cumplimiento de la meta. Esta observación refuerza la decisión de ADR-004 de mantener a los proveedores tras adaptadores intercambiables.
 
