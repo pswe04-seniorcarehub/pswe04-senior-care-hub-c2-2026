@@ -957,5 +957,66 @@ El siguiente diagrama de secuencia representa un camino de error en el que ocurr
 *Figura 8 — Secuencia: Falla transitoria en el envío mediante el único canal disponible*
 > **Imagen en tamaño completo:** [`secuencia-comp2-error.png`](../diagramas/secuencia-comp2-error.png) · **Fuente editable:** [`secuencia-comp2-error.mmd`](../diagramas/secuencia-comp2-error.mmd)
 
+---
+
+### Componente 3 – Servicio de Ingesta de Eventos
+
+**Responsabilidad:** Garantizar la recepción confiable de los eventos provenientes de fuentes simuladas o de dispositivos wearable, mediante la autenticación del emisor, la validación técnica del evento, la detección de duplicados, su aceptación durable mediante persistencia y la preparación para su publicación asíncrona hacia el Bus de Mensajería, preservando la integridad y disponibilidad de la información para su posterior procesamiento.
+
+**Trazabilidad:** Soporta los casos de uso definidos en la Sección 1.4 relacionados con la recepción de eventos provenientes de las fuentes de monitoreo del adulto mayor. Asimismo, implementa el requerimiento funcional RF-01 (Recepción y conservación de eventos) y contribuye al cumplimiento de los atributos de calidad relacionados con la disponibilidad, resiliencia y procesamiento asíncrono de eventos. En la Vista de estructura interna presentada en la Sección 7.2, corresponde al Contenedor 3 – Servicio de Ingesta de Eventos, responsable de autenticar el emisor, validar técnicamente los eventos recibidos, garantizar su aceptación durable y publicarlos de forma asíncrona hacia el Bus de Mensajería para su posterior procesamiento.
+ 
+#### 10.3.1 Diagrama de clases de diseño
+
+El siguiente diagrama presenta el diseño interno del componente Servicio de Ingesta de Eventos y las principales clases, interfaces y relaciones que permiten autenticar y validar los eventos recibidos, garantizar su aceptación durable e idempotente y desacoplar su persistencia de la publicación al Bus de Mensajería mediante el patrón Transactional Outbox.
+
+El diseño se organiza alrededor de `EventIngestionService`, que coordina la validación y persistencia atómica del `MonitoringEvent` y su `OutboxMessage`. La publicación se realiza posteriormente mediante `OutboxPublisher`, que procesa los mensajes pendientes y utiliza `IEventPublisher` para enviarlos al Bus de Mensajería, preservando los eventos incluso ante posibles fallos temporales en la publicación.
+
+![Diagrama de clases — Componente 3](../diagramas/clases-componente3.png)
+*Figura 9 — Diagrama de clases de diseño: Servicio de Ingesta de Eventos*
+> **Imagen en tamaño completo:** [`clases-componente3.png`](../diagramas/clases-componente3.png) · **Fuente editable:** [`clases-componente3.mmd`](../diagramas/clases-componente3.mmd)
+
+
+#### 10.3.2 Contratos de interfaz
+
+| Método / Endpoint | Precondición | Postcondición | Excepciones |
+|---|---|---|---|
+| `EventIngestionController.`<br>`ReceiveAsync(request):`<br>`Task<EventIngestionResult>` | `request` no debe ser nulo y debe provenir de una fuente de monitoreo capaz de presentar las credenciales requeridas por el componente. | Se autentica al emisor, se transforma la solicitud en un `MonitoringEvent` y, cuando la autenticación es válida, se delega su aceptación mediante `IEventIngestionService`. Se devuelve un `EventIngestionResult` que indica si el evento fue aceptado, ya había sido aceptado, es inválido o el emisor no está autorizado. | Puede producir una excepción cuando la solicitud no puede interpretarse, ante una falla técnica inesperada durante la autenticación o el procesamiento, o cuando se cancela la operación. |
+| `IEventSourceAuthenticator.`<br>`AuthenticateAsync(request):`<br>`Task<EventSourceAuthenticationResult>` | `request` no debe ser nulo y debe contener la información de autenticación requerida para identificar al emisor. | Se verifica la identidad del emisor y se devuelve un `EventSourceAuthenticationResult` que indica si está autenticado y, cuando corresponde, identifica la fuente mediante `SourceId`. Una autenticación inválida se representa mediante el resultado y no mediante una excepción. | Puede producir una excepción ante una falla técnica inesperada en el mecanismo de autenticación o ante la cancelación de la operación. |
+| `IEventIngestionService.`<br>`AcceptAsync`<br>`(event: MonitoringEvent):`<br>`Task<EventIngestionResult>` | `event` no debe ser nulo y debe provenir de un emisor previamente autenticado. | Se valida técnicamente el evento y, si resulta válido, se genera su `OutboxMessage` y se solicita su aceptación durable. Si el `EventId` ya fue aceptado, se devuelve `AlreadyAccepted` sin crear un nuevo evento ni una nueva intención de publicación. Si la aceptación es exitosa, se devuelve `Accepted`. | Puede producir una excepción cuando ocurre una falla técnica que impide garantizar la aceptación durable, durante el acceso a persistencia o ante la cancelación de la operación. Los eventos inválidos o duplicados se representan mediante el resultado y no mediante excepciones. |
+| `IIngestionEventValidator.`<br>`Validate(event: MonitoringEvent):`<br>`EventValidationResult` | `event` no debe ser nulo. | Se verifica que el evento contenga la estructura, identificadores, formatos y valores técnicos mínimos requeridos para su aceptación. Se devuelve un `EventValidationResult` que indica si el evento puede continuar con el proceso de ingesta y, cuando corresponda, la razón de su rechazo. | Puede producir una excepción únicamente ante una falla técnica inesperada durante la validación. Un evento técnicamente inválido se representa mediante `EventValidationResult`. |
+| `IEventIngestionRepository.`<br>`AcceptAsync(event: MonitoringEvent,`<br>`outboxMessage: OutboxMessage):`<br>`Task<EventPersistenceResult>` | `event` y `outboxMessage` no deben ser nulos; `outboxMessage.EventId` debe corresponder a `event.EventId`. | El `MonitoringEvent` y su `OutboxMessage` se persisten **atómicamente en una misma transacción**. Si ambas escrituras se confirman, el evento se considera aceptado durablemente. Si `EventId` ya existe, no se crea un segundo evento ni un segundo mensaje de Outbox y se devuelve `AlreadyExists`. | Puede producir una excepción ante una falla técnica de persistencia, una violación de integridad distinta de la duplicidad esperada, la imposibilidad de completar la transacción de forma durable o la cancelación de la operación. |
+| `OutboxPublisher.`<br>`PublishPendingAsync(): Task` | No Aplica. | Se recuperan los mensajes pendientes y se intenta publicar cada uno. Las publicaciones aceptadas se marcan como `Published`; ante fallas recuperables se registra el intento y el mensaje permanece disponible para un nuevo intento. | Puede producir una excepción ante una falla técnica que impida continuar de forma segura con el procesamiento del Outbox o ante la cancelación de la operación. Una falla individual de publicación debe registrarse sin provocar la pérdida del mensaje pendiente.                  |
+| `IOutboxRepository.`<br>`GetPendingAsync():`<br>`Task<OutboxMessageCollection>` | No Aplica. | Se devuelve la colección de mensajes pendientes de publicación. Si no existen mensajes pendientes, se devuelve una colección vacía. | Puede producir una excepción ante una falla técnica de consulta o ante la cancelación de la operación. |
+| `IEventPublisher.`<br>`PublishAsync(`<br>`outboxMessage: OutboxMessage): Task` | `outboxMessage` no debe ser nulo, debe encontrarse pendiente de publicación y debe contener un `Payload` válido. | Se envía el contenido del mensaje al Bus de Mensajería. Si el Bus acepta la publicación, la operación concluye satisfactoriamente. | Puede producir una excepción cuando el Bus no está disponible, ocurre un timeout, se rechaza la publicación, existe una falla de comunicación o se cancela la operación.                                                                                                             |
+
+#### 10.3.3 Análisis de robustez
+
+| Objeto | Tipo | Responsabilidad |
+|---|---|---|
+| `EventIngestionController`  | Boundary                           | Recibir las solicitudes provenientes de las fuentes de monitoreo, coordinar la autenticación del emisor, transformar la solicitud en un `MonitoringEvent` y delegar su aceptación mediante `IEventIngestionService`.                     |
+| `IEventSourceAuthenticator` | Boundary                           | Definir el contrato para autenticar la fuente emisora del evento y devolver un resultado normalizado de autenticación, independientemente del mecanismo concreto utilizado.                                                             |
+| `IEventIngestionRepository` | Boundary                           | Proporcionar acceso persistente para aceptar de forma durable un `MonitoringEvent`, almacenándolo atómicamente junto con su `OutboxMessage` y garantizando la idempotencia mediante la unicidad de `EventId`.                     |
+| `IOutboxRepository`         | Boundary                           | Proporcionar acceso persistente a los mensajes pendientes del Outbox y permitir actualizar su estado e información de seguimiento después de cada intento de publicación.                                                              |
+| `IEventPublisher`           | Boundary                           | Definir el contrato para publicar los mensajes pendientes hacia el Bus de Mensajería, aislando al componente de la tecnología concreta de mensajería utilizada.                                                                   |
+| `EventIngestionService`     | Control                            | Coordinar el proceso de aceptación del evento, incluyendo validación técnica, creación del `OutboxMessage`, solicitud de persistencia durable e interpretación del resultado de aceptación o duplicidad.                   |
+| `IngestionEventValidator`   | Control                            | Verificar que el evento recibido contenga la estructura, identificadores, formatos y valores técnicos mínimos requeridos para continuar con el proceso de ingesta.                                                                    |
+| `OutboxPublisher`           | Control                            | Coordinar el procesamiento de los mensajes pendientes del Outbox, solicitar su publicación al Bus de Mensajería y registrar el resultado de cada intento sin perder los mensajes ante fallos temporales.                             |
+| `MonitoringEvent`           | Entity                             | Representar el evento de monitoreo aceptado por el componente, incluyendo su identificador, fuente, adulto mayor asociado, tipo, versión del perfil, fechas e información necesaria para su trazabilidad y posterior procesamiento. |
+| `OutboxMessage`             | Entity                             | Representar la intención durable de publicar un evento, incluyendo su identificador, referencia al evento, payload, estado de publicación, fechas e información de seguimiento de los intentos realizados.                         |
+
+#### 10.3.4 Diagrama de secuencia — flujo principal
+
+El siguiente diagrama de secuencia representa el flujo principal del Servicio de Ingesta de Eventos, desde la recepción de un evento proveniente de una fuente de monitoreo hasta su aceptación durable y posterior publicación en el Bus de Mensajería. El componente autentica al emisor, valida técnicamente el evento y persiste atómicamente el MonitoringEvent junto con su OutboxMessage. Posteriormente, OutboxPublisher recupera el mensaje pendiente y gestiona su publicación al Bus, actualizando su estado cuando la publicación se completa satisfactoriamente.
+
+![Secuencia — Componente 3, flujo principal](../diagramas/secuencia-comp3-principal.png)
+*Figura 10 — Secuencia: Aceptación durable y publicación de un evento de monitoreo*
+> **Imagen en tamaño completo:** [`secuencia-comp3-principal.png`](../diagramas/secuencia-comp3-principal.png) · **Fuente editable:** [`secuencia-comp3-principal.mmd`](../diagramas/secuencia-comp3-principal.mmd)
+
+El siguiente diagrama de secuencia representa un camino de error en el que ocurre una falla transitoria durante la publicación de un evento previamente aceptado de forma durable. El MonitoringEvent y su OutboxMessage permanecen persistidos, mientras OutboxPublisher registra la falla y mantiene el mensaje disponible para un intento posterior. De esta forma, una indisponibilidad temporal del Bus de Mensajería no provoca la pérdida del evento ni afecta su aceptación previa.
+
+![Secuencia — Componente 3, camino de error](../diagramas/secuencia-comp3-error.png)
+*Figura 11 — Secuencia: Falla transitoria durante la publicación de un evento*
+> **Imagen en tamaño completo:** [`secuencia-comp3-error.png`](../diagramas/secuencia-comp3-error.png) · **Fuente editable:** [`secuencia-comp3-error.mmd`](../diagramas/secuencia-comp3-error.mmd)
+
 
 *Documento generado bajo el template estándar PSWE-04 — Universidad Cenfotec — Maestría Profesional en Ingeniería del Software*

@@ -1,0 +1,79 @@
+sequenceDiagram
+    autonumber
+
+    participant Source as Fuente de monitoreo
+    participant Controller as EventIngestionController
+    participant Auth as IEventSourceAuthenticator
+    participant Service as EventIngestionService
+    participant Validator as IIngestionEventValidator
+    participant IngestionRepo as IEventIngestionRepository
+    participant OutboxPublisher as OutboxPublisher
+    participant OutboxRepo as IOutboxRepository
+    participant EventPublisher as IEventPublisher
+    participant Bus as Bus de Mensajería
+
+    Source->>Controller: Enviar evento de monitoreo
+    activate Controller
+
+    Controller->>Auth: AuthenticateAsync(request)
+    activate Auth
+    Auth-->>Controller: EventSourceAuthenticationResult<br/>IsAuthenticated = true
+    deactivate Auth
+
+    Controller->>Controller: MapToEvent(request)
+
+    Controller->>Service: AcceptAsync(event)
+    activate Service
+
+    Service->>Validator: Validate(event)
+    activate Validator
+    Validator-->>Service: EventValidationResult<br/>IsValid = true
+    deactivate Validator
+
+    Service->>Service: Crear OutboxMessage<br/>Status = Pending
+
+    Service->>IngestionRepo: AcceptAsync(event, outboxMessage)
+    activate IngestionRepo
+
+    Note over IngestionRepo: MonitoringEvent y OutboxMessage<br/>se persisten en una misma transacción.
+
+    IngestionRepo->>IngestionRepo: BEGIN TRANSACTION
+    IngestionRepo->>IngestionRepo: Persistir MonitoringEvent
+    IngestionRepo->>IngestionRepo: Persistir OutboxMessage
+    IngestionRepo->>IngestionRepo: COMMIT
+
+    IngestionRepo-->>Service: EventPersistenceResult<br/>Status = Accepted
+    deactivate IngestionRepo
+
+    Service-->>Controller: EventIngestionResult<br/>Status = Accepted
+    deactivate Service
+
+    Controller-->>Source: Evento aceptado durablemente
+    deactivate Controller
+
+    Note over Source,Bus: El evento ya está preservado.<br/>La publicación ocurre posteriormente.
+
+    OutboxPublisher->>OutboxRepo: GetPendingAsync()
+    activate OutboxRepo
+    OutboxRepo-->>OutboxPublisher: OutboxMessageCollection
+    deactivate OutboxRepo
+
+    OutboxPublisher->>EventPublisher: PublishAsync(outboxMessage)
+    activate EventPublisher
+
+    EventPublisher->>Bus: Publicar Payload
+    activate Bus
+    Bus-->>EventPublisher: Timeout / indisponibilidad temporal
+    deactivate Bus
+
+    EventPublisher--xOutboxPublisher: Falla de publicación
+    deactivate EventPublisher
+
+    OutboxPublisher->>OutboxRepo: RegisterFailureAsync(messageId, reason)
+    activate OutboxRepo
+    OutboxRepo-->>OutboxPublisher: Fallo registrado
+    deactivate OutboxRepo
+
+    Note over OutboxPublisher,OutboxRepo: AttemptCount se incrementa y se registra la causa.<br/>El mensaje permanece Pending para reintento.
+
+    Note over OutboxPublisher,Bus: En una ejecución posterior, OutboxPublisher<br/>volverá a recuperar e intentar publicar el mensaje.

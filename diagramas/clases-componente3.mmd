@@ -1,0 +1,253 @@
+classDiagram
+    direction TB
+
+    %% =========================================================
+    %% PUNTO DE ENTRADA
+    %% =========================================================
+
+    class EventIngestionController {
+        <<Boundary>>
+        -IEventIngestionService ingestionService
+        -IEventSourceAuthenticator authenticator
+        +ReceiveAsync(request) Task~EventIngestionResult~
+        -MapToEvent(request) MonitoringEvent
+    }
+
+    %% =========================================================
+    %% SERVICIO PRINCIPAL DE INGESTA
+    %% =========================================================
+
+    class IEventIngestionService {
+        <<interface>>
+        +AcceptAsync(event) Task~EventIngestionResult~
+    }
+
+    class EventIngestionService {
+        <<Control>>
+        -IIngestionEventValidator validator
+        -IEventIngestionRepository repository
+        +AcceptAsync(event) Task~EventIngestionResult~
+    }
+
+    %% =========================================================
+    %% AUTENTICACIÓN DEL EMISOR
+    %% =========================================================
+
+    class IEventSourceAuthenticator {
+        <<interface>>
+        +AuthenticateAsync(request) Task~EventSourceAuthenticationResult~
+    }
+
+    class EventSourceAuthenticator {
+        <<Boundary>>
+        +AuthenticateAsync(request) Task~EventSourceAuthenticationResult~
+    }
+
+    %% =========================================================
+    %% VALIDACIÓN TÉCNICA
+    %% =========================================================
+
+    class IIngestionEventValidator {
+        <<interface>>
+        +Validate(event) EventValidationResult
+    }
+
+    class IngestionEventValidator {
+        <<Control>>
+        +Validate(event) EventValidationResult
+    }
+
+    %% =========================================================
+    %% PERSISTENCIA Y ACEPTACIÓN DURABLE
+    %% =========================================================
+
+    class IEventIngestionRepository {
+        <<interface>>
+        <<Repository>>
+        +AcceptAsync(event, outboxMessage) Task~EventPersistenceResult~
+    }
+
+    class PostgreSqlEventIngestionRepository {
+        <<Boundary>>
+        +AcceptAsync(event, outboxMessage) Task~EventPersistenceResult~
+    }
+
+    %% =========================================================
+    %% PROCESAMIENTO DEL OUTBOX
+    %% =========================================================
+
+    class OutboxPublisher {
+        <<Control>>
+        -IOutboxRepository outboxRepository
+        -IEventPublisher eventPublisher
+        +PublishPendingAsync() Task
+    }
+
+    class IOutboxRepository {
+        <<interface>>
+        <<Repository>>
+        +GetPendingAsync() Task~OutboxMessageCollection~
+        +MarkPublishedAsync(messageId, publishedAt) Task
+        +RegisterFailureAsync(messageId, reason) Task
+    }
+
+    class PostgreSqlOutboxRepository {
+        <<Boundary>>
+        +GetPendingAsync() Task~OutboxMessageCollection~
+        +MarkPublishedAsync(messageId, publishedAt) Task
+        +RegisterFailureAsync(messageId, reason) Task
+    }
+
+    %% =========================================================
+    %% PUBLICACIÓN AL BUS
+    %% =========================================================
+
+    class IEventPublisher {
+        <<interface>>
+        +PublishAsync(outboxMessage) Task
+    }
+
+    class ServiceBusEventPublisher {
+        <<Boundary>>
+        +PublishAsync(outboxMessage) Task
+    }
+
+    %% =========================================================
+    %% ENTIDADES
+    %% =========================================================
+
+    class MonitoringEvent {
+        <<Entity>>
+        +Guid EventId
+        +Guid OlderAdultId
+        +Guid SourceId
+        +int ProfileVersion
+        +EventType EventType
+        +DateTimeOffset OccurredAt
+        +DateTimeOffset ReceivedAt
+        +string CorrelationId
+    }
+
+    class OutboxMessage {
+        <<Entity>>
+        +Guid MessageId
+        +Guid EventId
+        +string Payload
+        +OutboxMessageStatus Status
+        +DateTimeOffset CreatedAt
+        +DateTimeOffset? PublishedAt
+        +int AttemptCount
+        +string? LastFailureReason
+    }
+
+    %% =========================================================
+    %% VALUE OBJECTS
+    %% =========================================================
+
+    class EventIngestionResult {
+        <<Value Object>>
+        +EventIngestionStatus Status
+        +Guid EventId
+        +string? Reason
+    }
+
+    class EventValidationResult {
+        <<Value Object>>
+        +bool IsValid
+        +string? Reason
+    }
+
+    class EventSourceAuthenticationResult {
+        <<Value Object>>
+        +bool IsAuthenticated
+        +Guid? SourceId
+        +string? Reason
+    }
+
+    class EventPersistenceResult {
+        <<Value Object>>
+        +EventPersistenceStatus Status
+    }
+
+    class OutboxMessageCollection {
+        <<Value Object>>
+        +OutboxMessage[] Messages
+    }
+
+    %% =========================================================
+    %% ENUMERACIONES
+    %% =========================================================
+
+    class EventIngestionStatus {
+        <<enumeration>>
+        Accepted
+        AlreadyAccepted
+        Invalid
+        Unauthorized
+    }
+
+    class EventPersistenceStatus {
+        <<enumeration>>
+        Accepted
+        AlreadyExists
+    }
+
+    class OutboxMessageStatus {
+        <<enumeration>>
+        Pending
+        Published
+        Failed
+    }
+
+    %% =========================================================
+    %% IMPLEMENTACIONES
+    %% =========================================================
+
+    IEventIngestionService <|.. EventIngestionService
+    IEventSourceAuthenticator <|.. EventSourceAuthenticator
+    IIngestionEventValidator <|.. IngestionEventValidator
+    IEventIngestionRepository <|.. PostgreSqlEventIngestionRepository
+    IOutboxRepository <|.. PostgreSqlOutboxRepository
+    IEventPublisher <|.. ServiceBusEventPublisher
+
+    %% =========================================================
+    %% FLUJO PRINCIPAL DE INGESTA
+    %% =========================================================
+
+    EventIngestionController --> IEventSourceAuthenticator : autentica emisor
+    EventIngestionController --> IEventIngestionService : delega aceptación
+    EventIngestionController --> MonitoringEvent : transforma solicitud
+
+    EventIngestionService --> IIngestionEventValidator : valida técnicamente
+    EventIngestionService --> IEventIngestionRepository : solicita aceptación durable
+    EventIngestionService --> OutboxMessage : crea intención de publicación
+    EventIngestionService --> EventIngestionResult : devuelve resultado
+
+    IIngestionEventValidator --> EventValidationResult : devuelve validación
+
+    IEventIngestionRepository --> EventPersistenceResult : devuelve resultado
+
+    %% =========================================================
+    %% TRANSACTIONAL OUTBOX
+    %% =========================================================
+
+    IEventIngestionRepository --> MonitoringEvent : persiste
+    IEventIngestionRepository --> OutboxMessage : persiste en misma transacción
+
+    OutboxPublisher --> IOutboxRepository : obtiene pendientes y actualiza estado
+    OutboxPublisher --> IEventPublisher : solicita publicación
+
+    IOutboxRepository --> OutboxMessageCollection : devuelve pendientes
+    OutboxMessageCollection --> OutboxMessage : contiene
+
+    IEventPublisher --> OutboxMessage : publica mensaje pendiente
+
+    %% =========================================================
+    %% RELACIONES DEL DOMINIO
+    %% =========================================================
+
+    MonitoringEvent "1" --> "1" OutboxMessage : origina publicación
+
+    EventIngestionResult --> EventIngestionStatus : representa estado
+    EventPersistenceResult --> EventPersistenceStatus : representa resultado
+    OutboxMessage --> OutboxMessageStatus : mantiene estado
