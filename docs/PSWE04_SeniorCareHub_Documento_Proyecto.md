@@ -47,6 +47,7 @@
 10. [Diseño detallado de componentes](#10-diseño-detallado-de-componentes)
 14. [Asuntos clave de diseño](#14-asuntos-clave-de-diseño)
    - 14.1 [Sistemas distribuidos y computación en la nube](#141-sistemas-distribuidos-y-computación-en-la-nube)
+   - 14.2 [Sistemas concurrentes y de tiempo real](#142-sistemas-concurrentes-y-de-tiempo-real)
 ---
 
 # BLOQUE 1 — CONTEXTO Y PROBLEMA
@@ -1494,6 +1495,58 @@ El análisis de las ocho falacias formuladas por Deutsch y Gosling permite verif
 **El simulador no reproduce la adversidad real de la red.** Un dispositivo portado por una persona sufre pérdidas de cobertura, agotamiento de batería y reconexiones que el simulador no genera. Las garantías de no pérdida verificadas en pruebas cubren el tramo desde la ingesta en adelante, no el tramo entre el dispositivo y la nube.
 
 **Ausencia de procesamiento en el borde.** Todo evento viaja íntegro a la nube antes de ser evaluado, incluidos aquellos que ninguna regla llegará a considerar. Las implicaciones de esta decisión se analizan en §14.3.
+
+### 14.2 Sistemas concurrentes y de tiempo real
+
+#### 14.2.1 Naturaleza concurrente del sistema
+
+La concurrencia en SeniorCareHub proviene de cuatro fuentes simultáneas: múltiples adultos mayores emitiendo eventos al mismo tiempo, múltiples réplicas de cada servicio consumiendo del intermediario, múltiples usuarios consultando el dashboard, y múltiples notificaciones despachándose en paralelo hacia proveedores distintos.
+
+La vista de concurrencia (§7.5) documenta las unidades de ejecución, los recursos compartidos y los mecanismos de sincronización adoptados. Este apartado no los repite: analiza el sistema desde la perspectiva temporal, que es la que determina si las garantías de concurrencia bastan para cumplir los compromisos asumidos.
+
+#### 14.2.2 Clasificación temporal del sistema
+
+SeniorCareHub es un sistema de **tiempo real blando**, no duro. La distinción es relevante y conviene sostenerla con precisión, porque determina qué técnicas de diseño corresponden y cuáles serían sobredimensionadas.
+
+En un sistema de tiempo real duro, incumplir un plazo constituye un fallo del sistema con consecuencias equivalentes a producir un resultado incorrecto: el control de vuelo o un marcapasos operan bajo esa lógica. En un sistema de tiempo real blando, el valor del resultado se degrada progresivamente al superarse el plazo, pero el resultado sigue siendo útil.
+
+La formulación misma de QS-02 evidencia la clasificación: la meta se expresa como cinco segundos **en el percentil 95**, no como un plazo absoluto para cada evento. Un requisito de tiempo real duro no admitiría un percentil, porque el cinco por ciento restante constituiría un fallo. En SeniorCareHub, una alerta entregada en siete segundos sigue cumpliendo su propósito: es peor que una entregada en tres, pero no equivale a no entregarla.
+
+La consecuencia práctica es que el diseño no requiere un sistema operativo de tiempo real, planificación determinista de tareas, ni análisis de planificabilidad o de inversión de prioridades. Sí requiere, en cambio, administrar de forma explícita un presupuesto de latencia y verificar su cumplimiento mediante medición estadística.
+
+#### 14.2.3 Presupuesto de latencia
+
+Descomponer el objetivo de cinco segundos permite identificar dónde se consume realmente el tiempo y dónde tiene sentido optimizar. Las cifras siguientes son estimaciones de diseño que deben validarse mediante medición sobre el despliegue real; su valor está en las proporciones relativas más que en los valores absolutos.
+
+| Etapa | Estimación | Observaciones |
+|---|---|---|
+| Recepción, validación y persistencia del evento | ~200 ms | Incluye la escritura en el Almacén de Eventos |
+| Publicación y entrega por el intermediario | ~100 ms | Dos tránsitos por el bus a lo largo del flujo |
+| Lectura de reglas y estado, y evaluación | ~300 ms | Incluye una lectura y una escritura sobre la BD Operativa |
+| Publicación y entrega de la alerta confirmada | ~100 ms | Segundo tránsito por el intermediario |
+| Resolución de destinatarios y canales | ~200 ms | Lectura del perfil de notificación |
+| **Invocación al proveedor externo** | **1 000 – 3 000 ms** | **Etapa dominante y fuera del control del equipo** |
+| Margen disponible | ~1 100 ms | Absorbe variabilidad y reintentos internos |
+
+La conclusión relevante es que el tramo bajo control del equipo consume aproximadamente el veinte por ciento del presupuesto, mientras que la invocación al proveedor externo domina el resto. Optimizar el procesamiento interno tendría un efecto marginal sobre QS-02; en cambio, la elección del proveedor, la configuración de su tiempo límite y el orden de prioridad de canales son las palancas que efectivamente determinan el cumplimiento de la meta. Esta observación refuerza la decisión de ADR-004 de mantener a los proveedores tras adaptadores intercambiables.
+
+Una segunda consecuencia afecta a la ventana de confirmación de ADR-003: cualquier ventana configurada se suma íntegramente al presupuesto. Con el margen estimado, una ventana superior a un segundo comprometería la meta para los eventos que la requieran. Por ello ADR-003 establece que los eventos de criticidad inmediata no esperan ventana alguna, lo que resuelve la tensión entre exactitud y latencia a favor de la latencia justo donde la persona corre riesgo.
+
+#### 14.2.4 Riesgos temporales identificados
+
+**Acumulación por contrapresión.** Si la tasa de eventos entrantes supera de forma sostenida la capacidad de evaluación, la cola crece y la latencia aumenta aunque no se pierda ningún mensaje. Conviene explicitar el matiz: la durabilidad del intermediario protege contra la pérdida, no contra la demora. La mitigación es el escalado automático de réplicas gobernado por la profundidad de la suscripción, con el techo de paralelismo que impone el particionamiento por sesión (§7.5.3).
+
+**Expiración del bloqueo durante el procesamiento.** Si una evaluación excede la duración del bloqueo del mensaje, el intermediario lo reentrega y se produce trabajo duplicado que consume capacidad. La deduplicación evita la alerta doble, pero no el costo temporal. Es una condición de configuración a verificar mediante pruebas, no una propiedad garantizada por el diseño.
+
+**Pausas de la plataforma de ejecución.** Las pausas por recolección de basura y el agotamiento del grupo de hilos en los servicios .NET introducen variabilidad no determinista en el percentil alto de latencia. Es una de las razones por las que la meta se expresa en percentil 95 y no como plazo absoluto.
+
+**Arranque en frío.** Mitigado mediante la réplica mínima permanente decidida en §7.4.2, a costa del consumo en reposo.
+
+**Divergencia de relojes.** Las ventanas temporales se calculan sobre la marca del evento de origen y no sobre la del instante de procesamiento, de modo que un desfase entre nodos no altera el resultado de la evaluación.
+
+#### 14.2.5 Verificación de las garantías temporales
+
+Las garantías de este sistema son estadísticas y por lo tanto deben verificarse por medición, no por demostración analítica. La telemetría centralizada descrita en §7.4.1, con identificador de correlación propagado extremo a extremo, permite reconstruir la latencia real de cada alerta y calcular el percentil comprometido sobre datos de operación. Sin esa instrumentación, QS-02 sería un objetivo declarado pero no verificable, lo que lo dejaría fuera de la definición de escenario de calidad medible.
 
 
 *Documento generado bajo el template estándar PSWE-04 — Universidad Cenfotec — Maestría Profesional en Ingeniería del Software*
