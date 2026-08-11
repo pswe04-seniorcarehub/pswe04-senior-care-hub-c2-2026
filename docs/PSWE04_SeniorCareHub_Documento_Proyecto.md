@@ -1729,6 +1729,13 @@ Por contraste, clases como los evaluadores de reglas, `NotificationAdapterFactor
 
 Las métricas se utilizan como indicadores de calidad estructural y no como objetivos absolutos. Un componente distribuido que orquesta varias colaboraciones puede presentar acoplamiento medio y seguir siendo adecuado si esas dependencias están justificadas por su responsabilidad y se mantienen detrás de contratos estables. La principal señal de deterioro sería que un componente comenzara a incorporar responsabilidades ajenas a su frontera o dependencias tecnológicas directas que hoy permanecen aisladas.
 
+---
+
+# BLOQUE 7 — SECCIONES ESPECÍFICAS POR TIPO DE SISTEMA
+*Hito: Entrega final (S14)*
+
+---
+
 ## 14. Asuntos clave de diseño
 
 Este capítulo analiza SeniorCareHub bajo las lentes transversales que atraviesan su arquitectura: su condición de sistema distribuido desplegado en la nube, su comportamiento concurrente y con restricciones temporales, y su relación con el dominio de Internet de las Cosas. Cada apartado se apoya en las vistas del capítulo 7 y en las decisiones registradas en los capítulos 8 y 9, y explicita tanto lo que el diseño resuelve como lo que deliberadamente deja fuera de alcance.
@@ -1882,6 +1889,92 @@ El criterio de reparto es explícito: al borde va lo que depende de la inmediate
 La migración no sería gratuita, y conviene registrar los costos con la misma honestidad que los beneficios. La lógica de detección quedaría duplicada en dos implementaciones —la del dispositivo y la del Motor de Reglas— que deben mantenerse coherentes, reintroduciendo el problema de sincronización que la centralización evita hoy. La actualización del software del dispositivo se convertiría en una operación de despliegue adicional, con su propio ciclo de versiones y sus fallos parciales. Y el flujo de "aceptación tras persistir y publicar" documentado en §7.3.1 tendría que extenderse al tramo dispositivo-nube mediante confirmaciones y reenvío, tramo que hoy queda fuera de las garantías verificadas según se reconoce en §14.1.5.
 
 Ninguno de estos costos invalida la evolución: la acota. El estilo orientado a eventos la absorbe sin cambio estructural —el borde se convierte en un productor más inteligente, pero el transporte, la confirmación y el despacho permanecen idénticos—, lo que confirma la conclusión de §15.5 sobre la estabilidad de la decisión registrada en ADR-001.
+
+### 14.4 Sistemas con IA Generativa / Agentes
+
+Este asunto clave de diseño **no aplica** porque SeniorCareHub no incorpora modelos de lenguaje, agentes autónomos ni ningún componente de IA generativa en su arquitectura actual. El término "inteligente" que describe al sistema en la sección 1.2 se refiere a la capacidad de interpretar eventos y aplicar reglas configurables, no a aprendizaje automático ni a razonamiento por modelos generativos. ADR-002 refuerza esta exclusión de forma deliberada: se evaluó y rechazó un motor de reglas completamente dinámico o un DSL arbitrario precisamente porque aumentaba la complejidad, los riesgos de seguridad y la dificultad de validación sin aportar un beneficio claro para el alcance del proyecto. El Motor de Reglas se implementa mediante el patrón Strategy sobre un conjunto controlado de evaluadores (`FallRuleEvaluator`, `InactivityRuleEvaluator`, `SafeZoneRuleEvaluator`), cuyo comportamiento es determinístico y auditable, solo evalúa condiciones parametrizadas.
+
+### 14.5 Sistemas con seguridad crítica
+
+SeniorCareHub requiere un análisis explícito de seguridad porque procesa información personal y sensible asociada a personas adultas mayores incluyendo identidad, ubicación, actividad y estado de monitoreo, por esta razión está sujeto a la restricción regulatoria REST-02 basada en la Ley N.° 8968 y posee superficies de ataque cuyo compromiso podría exponer información sensible, modificar configuraciones de monitoreo o interferir con la generación y entrega de alertas.
+
+La aplicación de esta sección no implica clasificar SeniorCareHub como un sistema médico o clínico. El alcance del proyecto excluye diagnóstico médico, interpretación clínica especializada y atención directa de emergencias. El análisis se concentra en la protección de información sensible, la integridad de la configuración, la disponibilidad del pipeline de alertas y la trazabilidad de las operaciones.
+
+#### 14.5.1 Modelo de amenazas — STRIDE simplificado
+
+| Amenaza | Componente en riesgo | Mitigación en el diseño | Riesgo residual / estado |
+|---|---|---|---|
+| **Spoofing — Suplantación de identidad** | Servicio de Ingesta; API de Aplicación | El Servicio de Ingesta autentica al emisor mediante `IEventSourceAuthenticator` antes de aceptar un evento (§10.3.2). La API de Aplicación tiene como responsabilidad autenticar al usuario antes de exponer operaciones (§7.2.1). Las conexiones externas utilizan HTTPS/TLS (§7.2.2). | El mecanismo concreto de autenticación de usuarios finales todavía debe especificarse. Las identidades administradas de Microsoft Entra ID descritas en §7.4.2 resuelven autenticación servicio-a-servicio, no identidad de usuarios finales. |
+| **Tampering — Alteración de información** | Eventos recibidos; configuración de perfiles, reglas, destinatarios y canales | TLS protege la información en tránsito. `IngestionEventValidator` valida la estructura técnica antes de aceptar eventos. En Gestión de Configuración, las modificaciones requieren un usuario autorizado y una nueva `ProfileConfigurationVersion` debe superar `ProfileConfigurationValidator` antes de persistirse y activarse mediante `SaveAndActivateAsync`. La nueva versión y su `ConfigurationAuditEntry` se almacenan de forma atómica; una falla conserva activa la versión anterior. | TLS no protege contra modificaciones realizadas por un actor legítimo pero indebidamente autorizado. La efectividad depende de que las políticas de autorización por rol y relación queden correctamente implementadas. |
+| **Repudiation — Repudio de acciones** | Cambios de configuración; accesos a datos; intentos de notificación | Los cambios de configuración generan `ConfigurationAuditEntry`; cada intento de notificación se registra mediante `NotificationAttempt`; QS-04 exige registrar intentos de acceso con actor, recurso, acción, decisión, motivo, origen y `correlationId`. Las alertas conservan además la versión de configuración utilizada, permitiendo reconstruir la decisión que las produjo. | Debe definirse la política de retención, protección contra alteración y consulta de la bitácora. `EventId` e idempotencia aportan trazabilidad operacional, pero no constituyen por sí mismos un mecanismo completo de no repudio. |
+| **Information Disclosure — Divulgación de información** | BD Operativa, Almacén de Eventos, Bus de Mensajería y frontera con proveedores externos | El diseño exige cifrado en tránsito; §8.4 establece minimización del contenido sensible y protección en reposo; la API aplica autorización por rol y relación; Managed Identity y Key Vault reducen exposición de credenciales técnicas. El Servicio de Notificaciones concentra la salida hacia terceros mediante `INotificationAdapter`, permitiendo controlar qué información abandona SeniorCareHub. | El cifrado en reposo está requerido por el diseño, pero su configuración concreta debe verificarse en despliegue. También debe definirse qué campos pueden enviarse a cada proveedor externo. REST-01 implica que dichos proveedores permanecen fuera del control directo del sistema. |
+| **Denial of Service — Denegación de servicio** | Servicio de Ingesta y API de Aplicación | El intermediario durable desacopla la velocidad de consumo de la recepción y permite absorber temporalmente acumulación de trabajo después de que un evento ha sido aceptado. Los servicios pueden escalar de forma independiente dentro de los límites definidos en despliegue. | El Bus no protege directamente los endpoints HTTP frente a abuso o tráfico volumétrico. El diseño todavía no especifica `rate limiting`, `throttling` ni un control equivalente en API e Ingesta. Además, API e Ingesta comparten actualmente un App Service Plan B1. |
+| **Elevation of Privilege — Elevación de privilegios** | API de Aplicación y operaciones de configuración | QS-04 y el principio de menor privilegio exigen autorización por rol y por relación con el adulto mayor. El Componente 4 exige que `PublishNewVersionAsync(request, userContext)` reciba un contexto de usuario autenticado y autorizado antes de modificar una configuración. | El mecanismo concreto de autorización de usuarios finales todavía debe detallarse: proveedor de identidad, representación de roles, relación cuidador/familiar–adulto mayor y evaluación de políticas. |
+
+#### Observaciones sobre las amenazas prioritarias
+
+Las amenazas con mayor impacto sobre el diseño son **Information Disclosure**, **Elevation of Privilege**, **Tampering** y **Denial of Service**.
+
+La divulgación de información es especialmente relevante porque SeniorCareHub procesa identidad, ubicación, actividad y estado de monitoreo de personas adultas mayores. El control de acceso debe considerar no solo el rol del usuario, sino también su relación con la persona monitoreada:
+
+```text
+Autenticación
+      ↓
+¿Quién es el actor?
+      ↓
+Autorización por rol
+      ↓
+¿Puede realizar esta operación?
+      ↓
+Autorización por relación
+      ↓
+¿Puede realizarla sobre ESTE adulto mayor?
+      ↓
+Acceso autorizado
+```
+
+La alteración de configuración también tiene impacto directo sobre el comportamiento del sistema. El Componente 4 reduce este riesgo mediante versionado, validación y activación atómica:
+
+```text
+Solicitud de cambio
+      ↓
+Autorización
+      ↓
+ProfileConfigurationVersion
+      ↓
+ProfileConfigurationValidator
+      ↓
+SaveAndActivateAsync
+      ↓
+ConfigurationAuditEntry
+```
+
+Una falla durante la persistencia no debe dejar una configuración parcialmente activa.
+
+Finalmente, frente a Denial of Service, la mensajería durable protege principalmente el desacoplamiento posterior a la aceptación de un evento. No debe confundirse con un mecanismo de protección del borde HTTP; esa capacidad permanece como riesgo abierto.
+
+#### 14.5.2 Controles por capa
+
+La estrategia sigue el principio de **Defense in Depth**, distribuyendo responsabilidades de protección entre varias fronteras del sistema.
+
+| Capa | Control | Evidencia | Estado |
+|---|---|---|---|
+| **Borde — API de Aplicación** | Autenticación de usuarios | Responsabilidad del Contenedor 2 (§7.2.1) | **Responsabilidad definida; mecanismo concreto pendiente** |
+| **Borde — API de Aplicación** | Autorización por rol y relación | QS-04; principio de menor privilegio; contratos de §10.4 | **Requerida por diseño; política detallada pendiente** |
+| **Borde — Servicio de Ingesta** | Autenticación de la fuente | `IEventSourceAuthenticator` (§10.3.2) | **Diseñado** |
+| **Borde — Servicio de Ingesta** | Validación técnica del evento | `IngestionEventValidator` (§10.3.2/§10.3.3) | **Diseñado** |
+| **Transporte** | TLS en comunicaciones externas e internas | HTTPS/TLS, AMQP 1.0/TLS y PostgreSQL/TLS (§7.2.2) | **Definido arquitectónicamente** |
+| **Lógica de aplicación** | Validación y activación coherente de configuración | `ProfileConfigurationValidator`, `SaveAndActivateAsync` (§10.4) | **Diseñado** |
+| **Lógica de aplicación** | Idempotencia y deduplicación | `EventId` único en Ingesta, `DeduplicationService` en Motor de Reglas, tracking previo en Notificaciones | **Diseñado** |
+| **Datos** | Cifrado en reposo | Requerido por QA-04 y §8.4 | **Requerido; configuración concreta pendiente** |
+| **Datos** | Minimización de información transportada | Criterio establecido en §8.4 | **Definido como criterio; contratos finales deben validarlo** |
+| **Datos / Mensajería** | Separación de eventos crudos y alertas confirmadas | Tópicos distintos en §7.5 | **Diseñado funcionalmente; no equivale por sí solo a clasificación por sensibilidad** |
+| **Auditoría** | Registro de cambios de configuración | `ConfigurationAuditEntry` (§10.4) | **Diseñado** |
+| **Auditoría** | Registro de intentos de entrega | `NotificationAttempt` (§10.2) | **Diseñado** |
+| **Auditoría** | Registro de intentos de acceso | QS-04 | **Requerido; implementación concreta pendiente** |
+| **Infraestructura** | Identidades administradas | §7.4.2 | **Definido en despliegue** |
+| **Infraestructura** | Gestión de secretos | Azure Key Vault (§7.4) | **Definido en despliegue** |
+| **Protección DoS** | `Rate limiting` / `throttling` | No definido actualmente | **Pendiente** |
 
 ## 15. Tendencias y evolución
 
