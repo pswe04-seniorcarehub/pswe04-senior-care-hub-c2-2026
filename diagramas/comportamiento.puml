@@ -24,9 +24,9 @@ actor "Familiar" as FA
 
 WE -> ING: Emitir evento de caida (HTTPS/TLS)
 ING -> ING: Autenticar dispositivo y validar estructura
-ING -> BDE: Persistir el evento
-ING -> BUS: Publicar evento crudo (SessionId = adulto mayor)
-ING --> WE: Aceptado
+ING -> BDE: Persistir evento + OutboxMessage (transaccion local, ADR-005)
+ING --> WE: Aceptado (aceptacion durable tras el commit)
+ING -> BUS: Publicar evento crudo via OutboxPublisher, asincrono (SessionId = adulto mayor)
 
 note over ING, BUS
   La ingesta responde sin esperar la evaluacion.

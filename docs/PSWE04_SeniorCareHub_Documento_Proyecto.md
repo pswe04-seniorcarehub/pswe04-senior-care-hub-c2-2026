@@ -500,9 +500,9 @@ sequenceDiagram
 
     WE->>ING: Emitir evento de caida (HTTPS/TLS)
     ING->>ING: Autenticar dispositivo y validar estructura
-    ING->>BDE: Persistir el evento
-    ING->>BUS: Publicar evento crudo (SessionId = adulto mayor)
-    ING-->>WE: Aceptado
+    ING->>BDE: Persistir evento + OutboxMessage (transaccion local, ADR-005)
+    ING-->>WE: Aceptado (aceptacion durable tras el commit)
+    ING->>BUS: Publicar evento crudo via OutboxPublisher, asincrono (SessionId = adulto mayor)
 
     Note over ING,BUS: La ingesta responde sin esperar la evaluacion.<br/>El desacople temporal protege QS-01.
 
@@ -528,7 +528,7 @@ sequenceDiagram
 
 *Figura 3 — Secuencia de sistema: detección y notificación de un evento crítico*
 
-El orden de las operaciones de la ingesta no es casual: la aceptación se emite únicamente después de persistir y publicar el evento, de modo que una falla intermedia deja al emisor sin confirmación y este reintenta; el duplicado resultante lo absorbe la deduplicación de ADR-003.
+El orden de las operaciones responde a ADR-005: la aceptación se emite tras el commit de la transacción local que persiste el evento junto con su OutboxMessage, sin esperar la publicación al bus, que el OutboxPublisher realiza de forma asíncrona. Una falla antes del commit deja al emisor sin confirmación y este reintenta — la unicidad de EventId responde AlreadyAccepted sin duplicar nada. Una falla posterior al commit no pierde el evento: la intención de publicar quedó persistida y se reintenta.
 
 #### 7.3.2 Flujo 2 — Fallo del proveedor de notificación
 
@@ -2038,17 +2038,18 @@ Descomponer el objetivo de cinco segundos permite identificar dónde se consume 
 
 | Etapa | Estimación | Observaciones |
 |---|---|---|
-| Recepción, validación y persistencia del evento | ~200 ms | Incluye la escritura en el Almacén de Eventos |
+| Recepción, validación y persistencia del evento | ~200 ms | Incluye la escritura en el Almacén de Eventos; ocurre antes de la aceptación durable, por lo que queda fuera de la ventana medida por QS-02 |
+| Espera en el Outbox hasta la publicación efectiva | ~200 – 500 ms | Etapa introducida por ADR-005; depende de la frecuencia del OutboxPublisher, cuya profundidad y antigüedad deben monitorearse (§13.1) |
 | Publicación y entrega por el intermediario | ~100 ms | Dos tránsitos por el bus a lo largo del flujo |
 | Lectura de reglas y estado, y evaluación | ~300 ms | Incluye una lectura y una escritura sobre la BD Operativa |
 | Publicación y entrega de la alerta confirmada | ~100 ms | Segundo tránsito por el intermediario |
 | Resolución de destinatarios y canales | ~200 ms | Lectura del perfil de notificación |
 | **Invocación al proveedor externo** | **1 000 – 3 000 ms** | **Etapa dominante y fuera del control del equipo** |
-| Margen disponible | ~1 100 ms | Absorbe variabilidad y reintentos internos |
+| Margen disponible | ~800 ms | Absorbe variabilidad y reintentos internos |
 
-Conviene precisar los límites de la ventana que QS-02 efectivamente mide: el reloj inicia en la aceptación durable del evento y se detiene cuando el primer proveedor acepta la solicitud. La etapa de recepción y persistencia queda por lo tanto fuera de la ventana medida y opera como holgura adicional, y la entrega final al destinatario tampoco se contabiliza. El escenario acota además el percentil 99 a 8 segundos, lo que confirma el carácter estadístico —y no absoluto— de la garantía analizada en §14.2.2.
+Conviene precisar los límites de la ventana que QS-02 efectivamente mide: el reloj inicia en la aceptación durable del evento y se detiene cuando el primer proveedor acepta la solicitud. La etapa de recepción y persistencia queda por lo tanto fuera de la ventana medida y opera como holgura adicional, y la entrega final al destinatario tampoco se contabiliza. El escenario acota además el percentil 99 a 8 segundos, lo que confirma el carácter estadístico —y no absoluto— de la garantía analizada en §14.2.2. La espera en el Outbox, en cambio, sí forma parte de la ventana medida, pues ocurre después de la aceptación durable; con ello queda incluida la etapa que §13.1 exige contabilizar.
 
-La conclusión relevante es que el tramo bajo control del equipo consume aproximadamente el veinte por ciento del presupuesto, mientras que la invocación al proveedor externo domina el resto. Optimizar el procesamiento interno tendría un efecto marginal sobre QS-02; en cambio, la elección del proveedor, la configuración de su tiempo límite y el orden de prioridad de canales son las palancas que efectivamente determinan el cumplimiento de la meta. Esta observación refuerza la decisión de ADR-004 de mantener a los proveedores tras adaptadores intercambiables.
+La conclusión relevante es que el tramo bajo control del equipo consume en torno a una cuarta parte del presupuesto, mientras que la invocación al proveedor externo domina el resto. Optimizar el procesamiento interno tendría un efecto marginal sobre QS-02; en cambio, la elección del proveedor, la configuración de su tiempo límite y el orden de prioridad de canales son las palancas que efectivamente determinan el cumplimiento de la meta. Esta observación refuerza la decisión de ADR-004 de mantener a los proveedores tras adaptadores intercambiables.
 
 Una segunda consecuencia afecta a la ventana de confirmación de ADR-003: cualquier ventana configurada se suma íntegramente al presupuesto. Con el margen estimado, una ventana superior a un segundo comprometería la meta para los eventos que la requieran. Por ello ADR-003 establece que los eventos de criticidad inmediata no esperan ventana alguna, lo que resuelve la tensión entre exactitud y latencia a favor de la latencia justo donde la persona corre riesgo.
 
@@ -2097,7 +2098,7 @@ El criterio de reparto es explícito: al borde va lo que depende de la inmediate
 
 #### 14.3.4 Costos que introduciría el borde
 
-La migración no sería gratuita, y conviene registrar los costos con la misma honestidad que los beneficios. La lógica de detección quedaría duplicada en dos implementaciones —la del dispositivo y la del Motor de Reglas— que deben mantenerse coherentes, reintroduciendo el problema de sincronización que la centralización evita hoy. La actualización del software del dispositivo se convertiría en una operación de despliegue adicional, con su propio ciclo de versiones y sus fallos parciales. Y el flujo de "aceptación tras persistir y publicar" documentado en §7.3.1 tendría que extenderse al tramo dispositivo-nube mediante confirmaciones y reenvío, tramo que hoy queda fuera de las garantías verificadas según se reconoce en §14.1.5.
+La migración no sería gratuita, y conviene registrar los costos con la misma honestidad que los beneficios. La lógica de detección quedaría duplicada en dos implementaciones —la del dispositivo y la del Motor de Reglas— que deben mantenerse coherentes, reintroduciendo el problema de sincronización que la centralización evita hoy. La actualización del software del dispositivo se convertiría en una operación de despliegue adicional, con su propio ciclo de versiones y sus fallos parciales. Y la garantía de aceptación durable documentada en §7.3.1 y ADR-005 tendría que extenderse al tramo dispositivo-nube mediante confirmaciones y reenvío, tramo que hoy queda fuera de las garantías verificadas según se reconoce en §14.1.5.
 
 Ninguno de estos costos invalida la evolución: la acota. El estilo orientado a eventos la absorbe sin cambio estructural —el borde se convierte en un productor más inteligente, pero el transporte, la confirmación y el despacho permanecen idénticos—, lo que confirma la conclusión de §15.5 sobre la estabilidad de la decisión registrada en ADR-001.
 
