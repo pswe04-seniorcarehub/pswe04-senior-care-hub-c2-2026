@@ -1034,10 +1034,10 @@ Se documentaron cuatro decisiones arquitectónicas significativas que afectan la
 
 | ADR | Título | Estado | Drivers atendidos |
 |---|---|---|---|
-| [ADR-001](/decisiones/ADR-001-separar-ingesta-evaluacion-alertas-notificaciones.md) | Separar ingesta, evaluación, alertas y notificaciones mediante eventos | Propuesta | RF-01, RF-03, QA-01, QA-02, QA-03, REST-01 |
-| [ADR-002](/decisiones/ADR-002-motor-reglas-configurable-perfiles-versionados.md) | Implementar un motor de reglas configurable y perfiles versionados | Propuesta | RF-02, RF-05, QA-02, QA-05 |
-| [ADR-003](/decisiones/ADR-003-gestion-falsas-alarmas-correlacion-confirmacion.md) | Gestionar falsas alarmas mediante correlación, confirmación y deduplicación | Propuesta | RF-02, RF-05, QA-02, QA-03 |
-| [ADR-004](/decisiones/ADR-004-notificaciones-canales-configurables-adaptadores.md) | Desacoplar las notificaciones mediante canales configurables y adaptadores | Propuesta | RF-03, RF-05, QA-02, QA-05, REST-01 |
+| [ADR-001](/decisiones/ADR-001-separar-ingesta-evaluacion-alertas-notificaciones.md) | Separar ingesta, evaluación, alertas y notificaciones mediante eventos | Aceptada | RF-01, RF-03, QA-01, QA-02, QA-03, REST-01 |
+| [ADR-002](/decisiones/ADR-002-motor-reglas-configurable-perfiles-versionados.md) | Implementar un motor de reglas configurable y perfiles versionados | Aceptada | RF-02, RF-05, QA-02, QA-05 |
+| [ADR-003](/decisiones/ADR-003-gestion-falsas-alarmas-correlacion-confirmacion.md) | Gestionar falsas alarmas mediante correlación, confirmación y deduplicación | Aceptada | RF-02, RF-05, QA-02, QA-03 |
+| [ADR-004](/decisiones/ADR-004-notificaciones-canales-configurables-adaptadores.md) | Desacoplar las notificaciones mediante canales configurables y adaptadores | Aceptada | RF-03, RF-05, QA-02, QA-05, REST-01 |
 
 ---
 
@@ -1045,8 +1045,9 @@ Se documentaron cuatro decisiones arquitectónicas significativas que afectan la
 
 | Campo | Detalle |
 |---|---|
-| **Estado** | Propuesta |
+| **Estado** | Aceptada |
 | **Fecha** | 2026-07-25 |
+ **Última revisión** | 2026-08-10 |
 | **Autores** | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 | **Drivers atendidos** | RF-01, RF-03, QA-01, QA-02, QA-03, REST-01 |
 | **Escenarios relacionados** | QS-01, QS-02, QS-03 |
@@ -1058,10 +1059,11 @@ SeniorCareHub debe recibir continuamente eventos simulados de monitoreo, evaluar
 Estas actividades presentan características y ritmos distintos. La recepción de eventos debe continuar aunque el motor de reglas se encuentre temporalmente saturado, y la evaluación de eventos no debe detenerse por la indisponibilidad de un proveedor de SMS o correo electrónico.
 
 Una cadena de llamadas sincrónicas entre recepción, evaluación y notificación provocaría que el fallo de un componente se propagara al resto del pipeline. Además, obligaría a que todos los componentes estuvieran disponibles al mismo tiempo para poder procesar un evento.
+Esto tensionaría QA-01 y permitiría que un reinicio o fallo temporal provocara pérdida de trabajo, contrario a QA-03.
 
 #### Decisión
 
-Se decide dividir el pipeline crítico en cuatro responsabilidades principales:
+Se decide dividir el pipeline crítico en tres responsabilidades principales:
 
 - **Servicio de Ingesta**, responsable de validar y aceptar eventos.
 - **Motor de Reglas**, responsable de evaluar los eventos y determinar si deben generar una alerta, responsable de registrar la alerta y controlar su estado.
@@ -1097,8 +1099,15 @@ El productor no dependerá de que el consumidor se encuentre disponible en el in
 
 #### Evidencia y validación
 
-- **Vista:** sección 7.2, vista de contenedores.
-- **Flujo:** procesamiento de un evento crítico en la sección 10.1.4.
+- §7.2 — Vista de contenedores.
+- §7.3.1 — Flujo de evento crítico.
+- §7.3.2 — Fallo de proveedor y fallback.
+- §7.5 — Vista de concurrencia.
+- §10.1 — Motor de Reglas.
+- §10.2 — Servicio de Notificaciones.
+- §10.3 — Servicio de Ingesta.
+- ADR-005 — aceptación durable mediante Transactional Outbox.
+
 - **Prueba prevista:** detener temporalmente el Motor de Reglas mientras el Servicio de Ingesta continúa recibiendo eventos.
 - **Resultado esperado:** los eventos permanecen disponibles en el intermediario y son procesados cuando el consumidor se recupera.
 
@@ -1108,14 +1117,16 @@ El productor no dependerá de que el consumidor se encuentre disponible en el in
 - La operación del sistema no puede asumir la complejidad de una plataforma distribuida.
 - El volumen real de eventos resulta suficientemente pequeño y tolerante a fallos como para justificar una arquitectura más simple.
 
+
 ---
 
 ### ADR-002: Implementar un motor de reglas configurable y perfiles versionados
 
 | Campo | Detalle |
 |---|---|
-| **Estado** | Propuesta |
+| **Estado** | Aceptada |
 | **Fecha** | 2026-07-25 |
+ **Última revisión** | 2026-08-10 |
 | **Autores** | Equipo Grupo 3 |
 | **Drivers atendidos** | RF-02, RF-05, QA-02, QA-05 |
 | **Escenarios relacionados** | QS-02, QS-05 |
@@ -1173,7 +1184,15 @@ La incorporación de un nuevo tipo de regla o algoritmo requerirá implementaci�
 - La flexibilidad introduce un costo adicional de evaluación.
 
 #### Evidencia y validación
-
+- §7.3.3 — Cambio de regla en operación.
+- §7.5.2–§7.5.3 — Versionado y estado de confirmación.
+- §10.1 — Motor de Reglas.
+- §10.2 — Servicio de Notificaciones.
+- §10.4 — Gestión de Configuración de Perfiles.
+- `ProfileConfigurationVersion`.
+- `ProfileConfigurationValidator`.
+- `SaveAndActivateAsync`.
+- `ConfigurationAuditEntry`.
 - **Componente detallado principal:** Motor de Reglas y Generación de Alertas.
 - **Patrón previsto:** Strategy para seleccionar el evaluador correspondiente al tipo de regla.
 - **Prueba prevista:** modificar el umbral de inactividad durante la operación y enviar eventos antes y después del cambio.
@@ -1190,8 +1209,9 @@ La incorporación de un nuevo tipo de regla o algoritmo requerirá implementaci�
 
 | Campo | Detalle |
 |---|---|
-| **Estado** | Propuesta |
+| **Estado** | Aceptada |
 | **Fecha** | 2026-07-25 |
+| **Última revisión** | 2026-08-10 |
 | **Autores** | Equipo Grupo 3 |
 | **Drivers atendidos** | RF-02, RF-05, QA-02, QA-03 |
 | **Escenarios relacionados** | QS-02, QS-03, QS-05 |
@@ -1209,11 +1229,14 @@ Se decide incorporar en el Motor de Reglas una etapa de confirmación configurab
 - Correlación de eventos relacionados.
 - Ventanas temporales de confirmación.
 - Deduplicación por adulto mayor, tipo de evento y período.
-- Estado temporal de evaluación por persona monitoreada.
+- Estado persistente de confirmación mediante `ConfirmationState`.
 - Niveles de confianza o criticidad.
 - Políticas diferenciadas según el tipo de evento.
+- Registro de la `ProfileVersion` utilizada.
 
 Los eventos de criticidad inmediata podrán generar una alerta sin esperar una ventana adicional cuando la regla configurada así lo determine. Los eventos ambiguos podrán requerir confirmación mediante eventos posteriores o el cumplimiento de una duración mínima.
+
+`ConfirmationState` se persiste en la BD Operativa. El estado se identifica por el adulto mayor, la regla y la versión de configuración aplicable. Ante un reinicio, la réplica que retoma el procesamiento recupera el último estado confirmado desde la base de datos.
 
 Una alerta confirmada deberá incluir una referencia a los eventos que la originaron y a la versión de reglas utilizada.
 
@@ -1234,6 +1257,7 @@ Una alerta confirmada deberá incluir una referencia a los eventos que la origin
 - Reduce el riesgo de fatiga de alarmas para cuidadores y familiares.
 
 **Negativas**
+- La persistencia de `ConfirmationState` agrega lecturas/escrituras al camino crítico.
 - Mantener estado temporal incrementa la complejidad del Motor de Reglas.
 - Una ventana de confirmación excesiva puede retrasar alertas reales.
 - Es necesario definir cómo recuperar el estado después de un reinicio.
@@ -1241,6 +1265,11 @@ Una alerta confirmada deberá incluir una referencia a los eventos que la origin
 
 #### Evidencia y validación
 
+- §7.5 — Vista de concurrencia.
+- §7.5.3 — Persistencia y recuperación de `ConfirmationState`.
+- §10.1.2 — `IConfirmationService` e `IConfirmationStateRepository`.
+- §10.1.4 — Flujo principal y error de persistencia.
+- §13.1 — Validación de QS-02 y QS-03.
 - **Componente:** Motor de Reglas y Generación de Alertas.
 - **Flujo de comportamiento:** correlación de eventos y confirmación de alerta.
 - **Prueba prevista:** simular eventos duplicados, pérdida breve de comunicación y una caída confirmada.
@@ -1259,6 +1288,7 @@ Una alerta confirmada deberá incluir una referencia a los eventos que la origin
 |---|---|
 | **Estado** | Propuesta |
 | **Fecha** | 2026-07-25 |
+| **Última revisión** | 2026-08-10 |
 | **Autores** | Equipo Grupo 3 |
 | **Drivers atendidos** | RF-03, RF-05, QA-02, QA-05, REST-01 |
 | **Escenarios relacionados** | QS-02, QS-05 |

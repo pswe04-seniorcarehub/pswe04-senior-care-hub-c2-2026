@@ -2,8 +2,9 @@
 
 | Campo | Detalle |
 |---|---|
-| **Estado** | Propuesta |
+| **Estado** | Aceptada |
 | **Fecha** | 2026-07-25 |
+ **Última revisión** | 2026-08-10 |
 | **Autores** | Equipo Grupo 3 |
 | **Drivers atendidos** | RF-02, RF-05, QA-02, QA-05 |
 | **Escenarios relacionados** | QS-02, QS-05 |
@@ -61,7 +62,15 @@ La incorporación de un nuevo tipo de regla o algoritmo requerirá implementaci�
 - La flexibilidad introduce un costo adicional de evaluación.
 
 ## Evidencia y validación
-
+- §7.3.3 — Cambio de regla en operación.
+- §7.5.2–§7.5.3 — Versionado y estado de confirmación.
+- §10.1 — Motor de Reglas.
+- §10.2 — Servicio de Notificaciones.
+- §10.4 — Gestión de Configuración de Perfiles.
+- `ProfileConfigurationVersion`.
+- `ProfileConfigurationValidator`.
+- `SaveAndActivateAsync`.
+- `ConfigurationAuditEntry`.
 - **Componente detallado principal:** Motor de Reglas y Generación de Alertas.
 - **Patrón previsto:** Strategy para seleccionar el evaluador correspondiente al tipo de regla.
 - **Prueba prevista:** modificar el umbral de inactividad durante la operación y enviar eventos antes y después del cambio.
