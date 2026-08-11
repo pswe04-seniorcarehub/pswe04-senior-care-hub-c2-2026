@@ -12,8 +12,8 @@
 | **URL del repositorio** | https://github.com/pswe04-seniorcarehub/pswe04-senior-care-hub-c2-2026.git |
 | **Docente** | Juan Mauricio Leandro Jimenez |
 | **Cuatrimestre** | 2026 — II Cuatrimestre |
-| **Versión del documento** | 0.3 — Avance 2(S11) |
-| **Fecha de última actualización** | 2026-07-26 |
+| **Versión del documento** | 1.0 — Entrega final (S14) |
+| **Fecha de última actualización** | 2026-08-11 |
 
 ---
 
@@ -24,6 +24,7 @@
 | 0.1 | 2026-05-26 | Propuesta (S03) | Creación del documento inicial | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 | 0.2 | 2026-06-24 | Avance 1 (S07) | Desarrollo del contexto del sistema, alcance, usuarios, stakeholders, drivers arquitectónicos, escenarios de calidad y vista de contexto C4. | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 | 0.3 | 2026-07-26 | Avance 2 (S11) | Incorporación de la vista de contenedores, estilo arquitectónico, análisis de alternativas, trade-offs, ADRs y primer diseño detallado de componentes. | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
+| 1.0 | 2026-08-11 | Entrega final (S14) | Documento completo | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 
 ---
 
@@ -46,6 +47,16 @@
 8. [Estilo arquitectónico](#8-estilo-arquitectónico)
 9. [Registro de decisiones — ADRs](#9-registro-de-decisiones--adrs)
 10. [Diseño detallado de componentes](#10-diseño-detallado-de-componentes)
+   - 10.1 [Motor de reglas](#101-componente-1--motor-de-reglas)
+   - 10.2 [Servicio de Notificaciones](#102-componente-2--servicio-de-notificaciones)
+   - 10.3 [Servicio de Ingesta de Eventos](#103-componente-3--servicio-de-ingesta-de-eventos)
+   - 10.4 [API de Aplicación: Gestión de Configuración de Perfiles](#104-componente-4--api-de-aplicación-gestión-de-configuración-de-perfiles)
+11. [Patrones de diseño aplicados](#11-patrones-de-diseño-aplicados)
+   - 11.1 [Transactional Outbox](#patrón-1--transactional-outbox)
+   - 11.2 [Strategy](#patrón-2--strategy)
+   - 11.3 [Factory](#patrón-3--factory)
+   - 11.4 [Adapter](#patrón-4--adapter)
+   - 11.5 [Repository](#patrón-5--repository)
 12. [Principios y técnicas habilitadoras — evidencia](#12-principios-y-técnicas-habilitadoras--evidencia)
    - 12.1 [Evidencia de principios de diseño](#121-evidencia-de-principios-de-diseño)
    - 12.2 [Técnicas habilitadoras evidenciadas](#122-técnicas-habilitadoras-evidenciadas)
@@ -1372,7 +1383,7 @@ Cada proveedor externo se ubicará detrás de una interfaz interna estable. La s
 
 ## 10. Diseño detallado de componentes
 
-### Componente 1 — Motor de reglas
+### 10.1 Componente 1 — Motor de reglas
 
 **Responsabilidad:** Analizar los eventos recibidos desde el Bus de Mensajería, evaluarlos de acuerdo con las reglas configurables y el perfil de monitoreo del adulto mayor asociado, determinar si representan una situación de riesgo, establecer su nivel de criticidad y generar una alerta cuando corresponda, aplicando mecanismos de confirmación, deduplicación e idempotencia para evitar falsas alarmas y el procesamiento repetido de un mismo evento.
 
@@ -1454,7 +1465,7 @@ El siguiente diagrama de secuencia representa un camino de error significativo e
 
 ---
 
-### Componente 2 — Servicio de Notificaciones
+### 10.2 Componente 2 — Servicio de Notificaciones
 
 **Responsabilidad:** Garantizar que las alertas confirmadas lleguen oportunamente a los familiares y cuidadores mediante los canales de comunicación configurados, gestionando la selección de destinatarios, la determinación de la política de entrega, la ejecución de la estrategia de notificación correspondiente, la comunicación con los proveedores externos y el registro del resultado de cada intento de notificación.
 
@@ -1522,7 +1533,7 @@ El siguiente diagrama de secuencia representa un camino de error en el que ocurr
 
 ---
 
-### Componente 3 – Servicio de Ingesta de Eventos
+### 10.3 Componente 3 – Servicio de Ingesta de Eventos
 
 **Responsabilidad:** Garantizar la recepción confiable de los eventos provenientes de fuentes simuladas o de dispositivos wearable, mediante la autenticación del emisor, la validación técnica del evento, la detección de duplicados, su aceptación durable mediante persistencia y la preparación para su publicación asíncrona hacia el Bus de Mensajería, preservando la integridad y disponibilidad de la información para su posterior procesamiento.
 
@@ -1583,7 +1594,7 @@ El siguiente diagrama de secuencia representa un camino de error en el que ocurr
 
 --- 
 
-### Componente 4 – API de Aplicación: Gestión de Configuración de Perfiles
+### 10.4 Componente 4 – API de Aplicación: Gestión de Configuración de Perfiles
 
 > Para efectos de este diseño detallado, el alcance se limita a la gestión de la configuración de perfiles y excluye las funcionalidades del mismo contenedor relacionadas con la autenticación y autorización de usuarios, las consultas de estado e historial, la gestión de usuarios y cualquier otra operación de la API de Aplicación no asociada a la configuración versionada de perfiles.
 

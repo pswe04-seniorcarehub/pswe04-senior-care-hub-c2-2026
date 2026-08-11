@@ -55,7 +55,8 @@ SeniorCareHub es una plataforma **IoT distribuida** de monitoreo y asistencia pa
 | [Propuesta S03](./docs/s03-propuesta.md) | Propuesta inicial: contexto, objetivo, alcance y complejidad. |
 | [Diagramas C4](./diagramas/*.puml) | Diagramas de arquitectura C4 y demás vistas arquitectónicas generales, desarrollados en PlantUML (`.puml`). |
 | [Decisiones arquitectónicas (ADRs)](./decisiones) | Registro de decisiones de diseño del proyecto. |
-| [Diagramas de diseño detallado](./diagramas/*.mmd) | Diagramas de clases y de secuencia correspondientes al diseño detallado de los componentes, desarrollados en Mermaid (`.mmd`). Cada diagrama cuenta además con su representación renderizada en formato `.png`, utilizada en el documento principal para facilitar su visualización. |
+| [Diagramas de diseño detallado](./diagramas/) | Diagramas de clases y de secuencia organizados por componente (`componente1` a `componente4`). Cada componente cuenta con su versión editable en Mermaid (`.mmd`) y su correspondiente representación en formato `.png`, utilizada en el documento principal. |
+| [Diagramas de patrones de diseño](./diagramas/patrones/) | Diagramas que muestran la aplicación de los patrones de diseño documentados en la Sección 11. Cada patrón cuenta con su versión editable en Mermaid (`.mmd`) y su correspondiente representación en formato `.png`. |
 
 ---
 
