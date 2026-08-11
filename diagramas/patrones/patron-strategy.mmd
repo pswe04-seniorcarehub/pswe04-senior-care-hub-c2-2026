@@ -1,0 +1,57 @@
+classDiagram
+    direction LR
+
+    class NotificationProcessingService {
+        <<Control>>
+        +ProcessAsync(alert)
+    }
+
+    class DeliveryPolicyResolver {
+        <<Control>>
+        +ResolveStrategy(alert, profile) IChannelDeliveryStrategy
+    }
+
+    class IChannelDeliveryStrategy {
+        <<interface>>
+        <<Strategy>>
+        +ExecuteAsync(alert, recipient, channels) Task~ChannelDeliveryResultCollection~
+    }
+
+    class ParallelDeliveryStrategy {
+        <<Control>>
+        +ExecuteAsync(alert, recipient, channels) Task~ChannelDeliveryResultCollection~
+    }
+
+    class PriorityFallbackDeliveryStrategy {
+        <<Control>>
+        +ExecuteAsync(alert, recipient, channels) Task~ChannelDeliveryResultCollection~
+    }
+
+    class Alert {
+        <<Entity>>
+        +AlertSeverity Severity
+    }
+
+    class NotificationProfile {
+        <<Entity>>
+        +DeliveryPolicy DeliveryPolicy
+    }
+
+    class DeliveryPolicy {
+        <<enumeration>>
+        PriorityFallback
+        Parallel
+    }
+
+    NotificationProcessingService --> DeliveryPolicyResolver : solicita estrategia
+
+    DeliveryPolicyResolver --> Alert : considera severidad
+    DeliveryPolicyResolver --> NotificationProfile : considera configuración
+    NotificationProfile --> DeliveryPolicy : define política
+
+    DeliveryPolicyResolver --> IChannelDeliveryStrategy : selecciona
+
+    IChannelDeliveryStrategy <|.. ParallelDeliveryStrategy
+    IChannelDeliveryStrategy <|.. PriorityFallbackDeliveryStrategy
+
+    NotificationProcessingService --> IChannelDeliveryStrategy : delega ejecución

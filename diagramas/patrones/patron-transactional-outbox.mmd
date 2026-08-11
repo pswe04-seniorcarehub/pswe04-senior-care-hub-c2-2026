@@ -1,0 +1,36 @@
+flowchart LR
+
+    EIS["EventIngestionService<br/><<Control>>"]
+    IER["IEventIngestionRepository<br/><<Repository>>"]
+
+    ME["MonitoringEvent<br/><<Entity>>"]
+    OM["OutboxMessage<br/><<Entity>><br/>Status = Pending"]
+
+    OP["OutboxPublisher<br/><<Control>>"]
+    IOR["IOutboxRepository<br/><<Repository>>"]
+    IEP["IEventPublisher<br/><<interface>>"]
+    SB["Service Bus<br/>Bus de Mensajería"]
+
+    %% Aceptación durable
+    EIS -->|"crea"| OM
+    EIS -->|"AcceptAsync(event, outboxMessage)"| IER
+
+    subgraph TX["Misma transacción de persistencia"]
+        IER -->|"persiste"| ME
+        IER -->|"persiste"| OM
+    end
+
+    %% Publicación desacoplada
+    OP -->|"GetPendingAsync()"| IOR
+    IOR -->|"OutboxMessage pendiente"| OP
+
+    OP -->|"PublishAsync(outboxMessage)"| IEP
+    IEP -->|"publica"| SB
+
+    %% Resultado
+    SB -->|"publicación aceptada"| OP
+    OP -->|"MarkPublishedAsync()"| IOR
+
+    %% Falla recuperable
+    SB -.->|"falla temporal"| OP
+    OP -.->|"RegisterFailureAsync()<br/>mensaje permanece pendiente"| IOR

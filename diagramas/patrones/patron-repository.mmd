@@ -1,0 +1,27 @@
+classDiagram
+    direction TB
+
+    class EventIngestionService
+    class NotificationProcessingService
+    class RuleEvaluationService
+    class ProfileConfigurationService
+
+    class IEventIngestionRepository
+    class INotificationProfileRepository
+    class IMonitoringProfileRepository
+    class IProfileConfigurationRepository
+
+    class PostgreSqlRepositories
+
+    EventIngestionService --> IEventIngestionRepository
+
+    NotificationProcessingService --> INotificationProfileRepository
+
+    RuleEvaluationService --> IMonitoringProfileRepository
+
+    ProfileConfigurationService --> IProfileConfigurationRepository
+
+    IEventIngestionRepository <|.. PostgreSqlRepositories
+    INotificationProfileRepository <|.. PostgreSqlRepositories
+    IMonitoringProfileRepository <|.. PostgreSqlRepositories
+    IProfileConfigurationRepository <|.. PostgreSqlRepositories

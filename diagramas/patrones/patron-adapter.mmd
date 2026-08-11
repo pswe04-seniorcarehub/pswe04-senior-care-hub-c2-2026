@@ -1,0 +1,54 @@
+classDiagram
+    direction LR
+
+    class NotificationProcessingService {
+        <<Control>>
+    }
+
+    class NotificationAdapterFactory {
+        <<Control>>
+        +Create(channelType, providerId)
+    }
+
+    class INotificationAdapter {
+        <<interface>>
+        <<Adapter>>
+        +Supports(channelType, providerId)
+        +SendAsync(alert, recipient, channel)
+    }
+
+    class SmsNotificationAdapter {
+        <<Boundary>>
+    }
+
+    class EmailNotificationAdapter {
+        <<Boundary>>
+    }
+
+    class InstantMessagingNotificationAdapter {
+        <<Boundary>>
+    }
+
+    class SmsProvider {
+        <<External>>
+    }
+
+    class EmailProvider {
+        <<External>>
+    }
+
+    class InstantMessagingProvider {
+        <<External>>
+    }
+
+    NotificationProcessingService --> NotificationAdapterFactory : solicita adaptador
+
+    NotificationAdapterFactory --> INotificationAdapter : Create()
+
+    INotificationAdapter <|.. SmsNotificationAdapter
+    INotificationAdapter <|.. EmailNotificationAdapter
+    INotificationAdapter <|.. InstantMessagingNotificationAdapter
+
+    SmsNotificationAdapter --> SmsProvider : adapta solicitud
+    EmailNotificationAdapter --> EmailProvider : adapta solicitud
+    InstantMessagingNotificationAdapter --> InstantMessagingProvider : adapta solicitud
