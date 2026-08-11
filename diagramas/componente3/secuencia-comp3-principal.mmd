@@ -20,7 +20,7 @@ sequenceDiagram
     Auth-->>Controller: EventSourceAuthenticationResult<br/>IsAuthenticated = true
     deactivate Auth
 
-    Controller->>Controller: MapToEvent(request)
+    Controller->>Controller: MapToEvent(request)<br/>registra ReceivedAt
 
     Controller->>Service: AcceptAsync(event)
     activate Service

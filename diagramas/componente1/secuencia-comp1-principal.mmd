@@ -22,7 +22,7 @@ sequenceDiagram
     Service->>Validator: ValidateAsync(event)
     Validator-->>Service: EventValidationResult válido
 
-    Service->>ProfileRepo: GetByOlderAdultIdAsync(event.olderAdultId, event.profileVersion)
+    Service->>ProfileRepo: GetApplicableAsync(event.olderAdultId, event.receivedAt)
     ProfileRepo-->>Service: MonitoringProfile
 
     Service->>RuleRepo: GetActiveRulesAsync(profile.profileId, profile.version, event.eventType)
@@ -40,7 +40,7 @@ sequenceDiagram
 
     Service->>Confirmation: ConfirmAsync(event, rule, evaluation)
 
-    Confirmation->>StateRepo: GetAsync(event.olderAdultId, rule.ruleId, event.profileVersion)
+    Confirmation->>StateRepo: GetAsync(event.olderAdultId, rule.ruleId, profile.version)
     StateRepo-->>Confirmation: ConfirmationState pendiente
 
     Confirmation->>Confirmation: Agregar event.eventId a MatchingEventIds

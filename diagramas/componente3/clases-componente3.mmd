@@ -121,7 +121,6 @@ classDiagram
         +Guid EventId
         +Guid OlderAdultId
         +Guid SourceId
-        +int ProfileVersion
         +EventType EventType
         +DateTimeOffset OccurredAt
         +DateTimeOffset ReceivedAt
@@ -216,7 +215,7 @@ classDiagram
 
     EventIngestionController --> IEventSourceAuthenticator : autentica emisor
     EventIngestionController --> IEventIngestionService : delega aceptación
-    EventIngestionController --> MonitoringEvent : transforma solicitud
+    EventIngestionController --> MonitoringEvent : transforma solicitud y registra ReceivedAt
 
     EventIngestionService --> IIngestionEventValidator : valida técnicamente
     EventIngestionService --> IEventIngestionRepository : solicita aceptación durable

@@ -140,7 +140,7 @@ classDiagram
     class IMonitoringProfileRepository {
         <<interface>>
         <<Boundary>>
-        +GetByOlderAdultIdAsync(olderAdultId, profileVersion) Task~MonitoringProfile?~
+        +GetApplicableAsync(olderAdultId, receivedAt) Task~MonitoringProfile?~
     }
 
     class IMonitoringRuleRepository {
@@ -166,7 +166,7 @@ classDiagram
 
     class PostgreSqlMonitoringProfileRepository {
         <<Boundary>>
-        +GetByOlderAdultIdAsync(olderAdultId, profileVersion) Task~MonitoringProfile?~
+        +GetByOlderAdultIdAsync(olderAdultId, receivedAt) Task~MonitoringProfile?~
     }
 
     class PostgreSqlMonitoringRuleRepository {
@@ -195,9 +195,9 @@ classDiagram
         <<Entity>>
         +Guid EventId
         +Guid OlderAdultId
-        +int ProfileVersion
         +EventType EventType
         +DateTimeOffset OccurredAt
+        +DateTimeOffset ReceivedAt
         +Dictionary Payload
     }
 
