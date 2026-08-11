@@ -1057,7 +1057,7 @@ Las siguientes decisiones documentan los aspectos arquitectónicos que tienen ma
 Cada ADR indica explícitamente los drivers que origina la decisión y los escenarios de calidad que permiten validarla. De esta forma, las decisiones arquitectónicas no se presentan como elecciones tecnológicas aisladas, sino como respuestas concretas a los requerimientos prioritarios de SeniorCareHub.
 
 ### Resumen de decisiones
-Se documentaron cuatro decisiones arquitectónicas significativas que afectan la estructura del pipeline crítico de SeniorCareHub, la configurabilidad del motor de reglas, el manejo de falsas alarmas, la confiabilidad de entrega de eventos y el desacoplamiento del envío de notificaciones. Cada ADR detalla el contexto, la decisión tomada, las alternativas evaluadas y sus consecuencias.
+Se documentaron cinco decisiones arquitectónicas significativas que afectan la estructura del pipeline crítico de SeniorCareHub, la configurabilidad del motor de reglas, el manejo de falsas alarmas, la confiabilidad de entrega de eventos y el desacoplamiento del envío de notificaciones. Cada ADR detalla el contexto, la decisión tomada, las alternativas evaluadas y sus consecuencias.
 
 | ADR | Título | Estado | Drivers atendidos |
 |---|---|---|---|
@@ -1065,7 +1065,7 @@ Se documentaron cuatro decisiones arquitectónicas significativas que afectan la
 | [ADR-002](/decisiones/ADR-002-motor-reglas-configurable-perfiles-versionados.md) | Implementar un motor de reglas configurable y perfiles versionados | Aceptada | RF-02, RF-05, QA-02, QA-05 |
 | [ADR-003](/decisiones/ADR-003-gestion-falsas-alarmas-correlacion-confirmacion.md) | Gestionar falsas alarmas mediante correlación, confirmación y deduplicación | Aceptada | RF-02, RF-05, QA-02, QA-03 |
 | [ADR-004](/decisiones/ADR-004-notificaciones-canales-configurables-adaptadores.md) | Desacoplar las notificaciones mediante canales configurables y adaptadores | Aceptada | RF-03, RF-05, QA-02, QA-05, REST-01 |
-| [ADR-005](/decisiones/ADR-005-garantizar-la-aceptacion-durable-de-eventos-mediante-transactional-outbox.md) | Garantizar la aceptación durable de eventos mediante Transactional Outbox | Aceptada | RF-01, QA-01, QA-02, QA-03 | QS-01, QS-02, QS-03 |
+| [ADR-005](/decisiones/ADR-005-garantizar-la-aceptacion-durable-de-eventos-mediante-transactional-outbox.md) | Garantizar la aceptación durable de eventos mediante Transactional Outbox | Aceptada | RF-01, QA-01, QA-02, QA-03|
 ---
 
 ### ADR-001: Separar ingesta, evaluación, alertas y notificaciones mediante eventos
@@ -1791,7 +1791,7 @@ En el presente apartado se documentan los principales patrones de diseño aplica
 
 ---
 
-### Patrón 3 — Factory 
+### Patrón 3 — Factory
 
 | Campo | Detalle |
 |---|---|
@@ -1894,7 +1894,7 @@ Esta sección valida los escenarios QS-01 a QS-05 contra las vistas arquitectón
 |---|---|---|---|---|
 | **QS-01 — Disponibilidad** | Disponibilidad mensual del pipeline crítico ≥ 99.5 % (≤ 3.6 h de indisponibilidad/mes) | ADR-001 desacopla temporalmente Ingesta, Motor de Reglas y Notificaciones, permitiendo que un productor continúe aceptando trabajo aunque un consumidor esté temporalmente indisponible. La vista de despliegue mantiene una réplica mínima del Motor de Reglas y del Servicio de Notificaciones para evitar arranques en frío. | ADR-001; §7.2; §7.4.1–§7.4.2 | El diseño incorpora mecanismos orientados a alcanzar la meta, pero no demuestra por sí solo 99.5 %. La instancia única, la ausencia de redundancia de zona y la dependencia de PostgreSQL/Service Bus requieren validación operativa. Una meta superior obligaría a revisar la estrategia de redundancia. |
 | **QS-02 — Rendimiento** | ≤ 5 s en p95 y ≤ 8 s en p99 desde la aceptación durable del evento hasta la aceptación por el primer proveedor | La propagación por eventos evita sondeo periódico; las sesiones ordenan únicamente por adulto mayor y permiten paralelismo entre personas distintas; ADR-002 utiliza tipos de reglas controlados; el Servicio de Notificaciones resuelve políticas y proveedores mediante contratos predefinidos. | ADR-001; ADR-002; §7.5.3; §10.1; §10.2; §10.3 | No existe todavía una prueba de carga ejecutada. Además, el tiempo entre la aceptación durable y la publicación efectiva del `OutboxMessage` forma parte del presupuesto de QS-02; la frecuencia y capacidad de `OutboxPublisher` deben dimensionarse para que esa espera no consuma una proporción significativa de los 5 s. El presupuesto temporal de §14.2.3 debe incluir explícitamente esta etapa. |
-| **QS-03 — Tolerancia a fallos / Resiliencia** | 100 % de eventos críticos asociados a un estado durable y trazable; 0 alertas huérfanas; primer fallback < 10 s en p95 | El Bus mantiene mensajes no confirmados para reentrega; el Motor de Reglas persiste `ConfirmationState` y no confirma el mensaje cuando no puede completar el procesamiento de forma segura; el Servicio de Notificaciones registra intentos y dispone de estrategias de fallback/reintento; el Servicio de Ingesta utiliza Transactional Outbox para conservar durablemente un evento aceptado aunque falle su publicación posterior. La recuperación del estado de confirmación tras reinicios se resuelve en §7.5.3 mediante persistencia en BD Operativa y recuperación por la réplica que retoma la sesión. | ADR-001; ADR-003; §7.3.2; §7.5.3; §10.1.4; §10.2.1–§10.2.4; §10.3.4 | Falta ejecutar la prueba de inyección de fallos y medir el tiempo real de fallback. Además, la semántica *at-least-once* puede producir efectos duplicados frente a proveedores externos si el envío fue aceptado pero el resultado no pudo persistirse antes de una reentrega. **ADR-004 debe actualizarse para incluir explícitamente QA-03/QS-03, fallback, reintentos e idempotencia, ya que el diseño detallado de §10.2 ya contiene estas capacidades.** |
+| **QS-03 — Tolerancia a fallos / Resiliencia** | 100 % de eventos críticos asociados a un estado durable y trazable; 0 alertas huérfanas; primer fallback < 10 s en p95 | El Bus mantiene mensajes no confirmados para reentrega; el Motor de Reglas persiste `ConfirmationState` y no confirma el mensaje cuando no puede completar el procesamiento de forma segura; el Servicio de Notificaciones registra intentos y dispone de estrategias de fallback/reintento; el Servicio de Ingesta utiliza Transactional Outbox para conservar durablemente un evento aceptado aunque falle su publicación posterior. La recuperación del estado de confirmación tras reinicios se resuelve en §7.5.3 mediante persistencia en BD Operativa y recuperación por la réplica que retoma la sesión. | ADR-001; ADR-003; §7.3.2; §7.5.3; §10.1.4; §10.2.1–§10.2.4; §10.3.4 | Falta ejecutar la prueba de inyección de fallos y medir el tiempo real de fallback. Además, la semántica *at-least-once* puede producir efectos duplicados frente a proveedores externos si el envío fue aceptado pero el resultado no pudo persistirse antes de una reentrega. |
 | **QS-04 — Seguridad y privacidad** | 100 % de casos de autorización con HTTP 401/403 según corresponda; registro auditable consultable < 5 s | La API concentra autenticación y autorización; QS-04 exige autorización por rol y relación; el Servicio de Ingesta autentica fuentes; las comunicaciones usan TLS; el despliegue utiliza identidades administradas y Key Vault para reducir exposición de credenciales. El Componente 4 exige un contexto de usuario autorizado para publicar configuraciones y persiste `ConfigurationAuditEntry` junto con la nueva versión. | REST-02; QS-04; §7.2.1–§7.2.2; §7.4.2; §10.3.2; §10.4.2–§10.4.4; §12 | Las identidades administradas resuelven autenticación servicio-a-servicio, no la autenticación y autorización de usuarios finales. El mecanismo concreto de identidad, las políticas de rol/relación, la protección de la bitácora y la medida de auditoría < 5 s deben validarse en implementación. |
 | **QS-05 — Modificabilidad** | Nueva configuración disponible < 10 min sin recompilar ni redesplegar el Motor de Reglas | ADR-002 mantiene reglas y perfiles como configuración versionada. El Componente 4 materializa esa decisión mediante `ProfileConfigurationService`, `ProfileConfigurationVersion`, `ProfileConfigurationValidator`, `SaveAndActivateAsync` y `ConfigurationAuditEntry`: la nueva versión se construye, valida, persiste y activa de forma atómica, mientras la versión anterior permanece disponible para trazabilidad. `IRuleEvaluator`, `IChannelDeliveryStrategy` e `INotificationAdapter` mantienen estables los coordinadores ante nuevos evaluadores, políticas o proveedores compatibles. | ADR-002; ADR-004; §7.3.3; §10.1.1; §10.2.1; **§10.4.1–§10.4.4** | La creación, validación y activación de versiones ya está resuelta por diseño. Queda pendiente definir de forma única **cómo los consumidores seleccionan la versión aplicable** y garantizar su visibilidad dentro del límite de 10 min. Actualmente §7.3.3 supone que el Motor de Reglas consulta la versión vigente, mientras §10.1 y §10.3 incluyen `event.ProfileVersion`; esta semántica debe unificarse. Si se utiliza caché, también debe definirse su política de actualización o invalidación. |
 
@@ -1904,7 +1904,7 @@ Los cinco escenarios poseen soporte explícito en la arquitectura, pero ninguno 
 
 La incorporación del Componente 4 fortalece especialmente QS-05: la publicación de configuraciones ya no es una responsabilidad implícita de la API, sino un caso de uso diseñado con contratos, validación, persistencia atómica, historial y auditoría. El principal riesgo residual de QS-05 se desplaza por tanto desde **cómo crear una versión consistente** hacia **cómo los consumidores determinan y observan la versión vigente**.
 
-## 13.2 Análisis de trade-offs entre atributos de calidad
+### 13.2 Análisis de trade-offs entre atributos de calidad
 
 | Conflicto | Atributo favorecido | Atributo sacrificado | Decisión que lo resolvió | Justificación |
 |---|---|---|---|---|
@@ -1917,7 +1917,7 @@ La incorporación del Componente 4 fortalece especialmente QS-05: la publicació
 | **Simplicidad de Ingesta vs. no pérdida del evento** | QA-03 | Simplicidad del flujo | Transactional Outbox en §10.3 | Persistir y publicar directamente deja una ventana de fallo entre ambos pasos. Outbox agrega una entidad y un publicador adicional, pero conserva durablemente la intención de publicación. |
 | **Resiliencia de entrega vs. latencia y costo** | QA-03 | QA-02 y costo operativo | Estrategias `PriorityFallbackDeliveryStrategy` / `ParallelDeliveryStrategy` | Fallback y envío paralelo aumentan las oportunidades de entrega, pero implican más llamadas a proveedores y pueden consumir mayor latencia o costo. |
 
-## 13.3 Métricas de diseño — estimación
+### 13.3 Métricas de diseño — estimación
 
 La estimación principal se realiza al nivel solicitado por el template: los **cuatro componentes detallados en la Sección 10**. Se utiliza una evaluación cualitativa de cohesión y acoplamiento basada en la concentración de responsabilidades, número de dependencias, uso de abstracciones y exposición a tecnologías externas.
 
@@ -2108,7 +2108,7 @@ Este asunto clave de diseño **no aplica** porque SeniorCareHub no incorpora mod
 
 ### 14.5 Sistemas con seguridad crítica
 
-SeniorCareHub requiere un análisis explícito de seguridad porque procesa información personal y sensible asociada a personas adultas mayores incluyendo identidad, ubicación, actividad y estado de monitoreo, por esta razión está sujeto a la restricción regulatoria REST-02 basada en la Ley N.° 8968 y posee superficies de ataque cuyo compromiso podría exponer información sensible, modificar configuraciones de monitoreo o interferir con la generación y entrega de alertas.
+SeniorCareHub requiere un análisis explícito de seguridad porque procesa información personal y sensible asociada a personas adultas mayores incluyendo identidad, ubicación, actividad y estado de monitoreo, por esta razón está sujeto a la restricción regulatoria REST-02 basada en la Ley N.° 8968 y posee superficies de ataque cuyo compromiso podría exponer información sensible, modificar configuraciones de monitoreo o interferir con la generación y entrega de alertas.
 
 La aplicación de esta sección no implica clasificar SeniorCareHub como un sistema médico o clínico. El alcance del proyecto excluye diagnóstico médico, interpretación clínica especializada y atención directa de emergencias. El análisis se concentra en la protección de información sensible, la integridad de la configuración, la disponibilidad del pipeline de alertas y la trazabilidad de las operaciones.
 
@@ -2316,11 +2316,11 @@ El glosario define el lenguaje ubicuo utilizado en SeniorCareHub. Los términos 
 
 ---
 
-# 17. Referencias
+## 17. Referencias
 
 Las referencias se presentan en formato APA y se limitan a fuentes utilizadas para fundamentar conceptos, patrones, decisiones o tecnologías mencionadas en el documento.
 
-## 17.1 Arquitectura y diseño de software
+### 17.1 Arquitectura y diseño de software
 
 - Bass, L., Clements, P., & Kazman, R. (2021). *Software Architecture in Practice* (4th ed.). Addison-Wesley.
 
@@ -2334,7 +2334,7 @@ Las referencias se presentan en formato APA y se limitan a fuentes utilizadas pa
 
 - Gomaa, H. (2011). *Software Modeling and Design: UML, Use Cases, Patterns, and Software Architectures*. Cambridge University Press.
 
-## 17.2 Patrones empresariales e integración
+### 17.2 Patrones empresariales e integración
 
 - Fowler, M. (2002). *Patterns of Enterprise Application Architecture*. Addison-Wesley.
 
@@ -2343,13 +2343,13 @@ Las referencias se presentan en formato APA y se limitan a fuentes utilizadas pa
 - Richardson, C. (2018). *Microservices Patterns: With Examples in Java*. Manning Publications.
 
 
-## 17.3 Seguridad y privacidad
+### 17.3 Seguridad y privacidad
 
 - Asamblea Legislativa de la República de Costa Rica. (2011, 5 de setiembre). *Ley N.° 8968: Protección de la Persona frente al Tratamiento de sus Datos Personales*. *La Gaceta*, n.° 170, San José, Costa Rica.
 
 - Shostack, A. (2014). *Threat Modeling: Designing for Security*. Wiley.
 
-## 17.4 Documentación técnica de Microsoft Azure
+### 17.4 Documentación técnica de Microsoft Azure
 
 - Microsoft. (s. f.). *Azure Service Bus documentation*. Microsoft Learn. https://learn.microsoft.com/azure/service-bus-messaging/
 

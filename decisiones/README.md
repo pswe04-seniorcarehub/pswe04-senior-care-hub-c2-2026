@@ -8,10 +8,11 @@ Un ADR se crea cuando una decisión involucra trade-offs reales y tiene consecue
 
 | ADR | Título | Estado | Drivers atendidos |
 |---|---|---|---|
-| [ADR-001](ADR-001-separar-ingesta-evaluacion-alertas-notificaciones.md) | Separar ingesta, evaluación, alertas y notificaciones mediante eventos | Propuesta | RF-01, RF-03, QA-01, QA-02, QA-03, REST-01 |
-| [ADR-002](ADR-002-motor-reglas-configurable-perfiles-versionados.md) | Implementar un motor de reglas configurable y perfiles versionados | Propuesta | RF-02, RF-05, QA-02, QA-05 |
-| [ADR-003](ADR-003-gestion-falsas-alarmas-correlacion-confirmacion.md) | Gestionar falsas alarmas mediante correlación, confirmación y deduplicación | Propuesta | RF-02, RF-05, QA-02, QA-03 |
-| [ADR-004](ADR-004-notificaciones-canales-configurables-adaptadores.md) | Desacoplar las notificaciones mediante canales configurables y adaptadores | Propuesta | RF-03, RF-05, QA-02, QA-05, REST-01 |
+| [ADR-001](ADR-001-separar-ingesta-evaluacion-alertas-notificaciones.md) | Separar ingesta, evaluación, alertas y notificaciones mediante eventos | Aceptada | RF-01, RF-03, QA-01, QA-02, QA-03, REST-01 |
+| [ADR-002](ADR-002-motor-reglas-configurable-perfiles-versionados.md) | Implementar un motor de reglas configurable y perfiles versionados | Aceptada | RF-02, RF-05, QA-02, QA-05 |
+| [ADR-003](ADR-003-gestion-falsas-alarmas-correlacion-confirmacion.md) | Gestionar falsas alarmas mediante correlación, confirmación y deduplicación | Aceptada | RF-02, RF-05, QA-02, QA-03 |
+| [ADR-004](ADR-004-notificaciones-canales-configurables-adaptadores.md) | Desacoplar las notificaciones mediante canales configurables y adaptadores | Aceptada | RF-03, RF-05, QA-02, QA-05, REST-01 |
+| [ADR-005](ADR-005-garantizar-la-aceptacion-durable-de-eventos-mediante-transactional-outbox.md) | Garantizar la aceptación durable de eventos mediante Transactional Outbox | Aceptada | RF-01, QA-01, QA-02, QA-03|
 
 ## Convención de nombres
 
