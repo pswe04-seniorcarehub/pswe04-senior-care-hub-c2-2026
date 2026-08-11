@@ -1,0 +1,40 @@
+classDiagram
+    direction LR
+
+    class ParallelDeliveryStrategy {
+        <<Control>>
+    }
+
+    class PriorityFallbackDeliveryStrategy {
+        <<Control>>
+    }
+
+    class NotificationAdapterFactory {
+        <<Control>>
+        +Create(channelType, providerId)
+    }
+
+    class INotificationAdapter {
+        <<interface>>
+    }
+
+    class SmsNotificationAdapter {
+        <<Boundary>>
+    }
+
+    class EmailNotificationAdapter {
+        <<Boundary>>
+    }
+
+    class InstantMessagingNotificationAdapter {
+        <<Boundary>>
+    }
+
+    ParallelDeliveryStrategy --> NotificationAdapterFactory : solicita adaptador
+    PriorityFallbackDeliveryStrategy --> NotificationAdapterFactory : solicita adaptador
+
+    NotificationAdapterFactory --> INotificationAdapter : Create()
+
+    INotificationAdapter <|.. SmsNotificationAdapter
+    INotificationAdapter <|.. EmailNotificationAdapter
+    INotificationAdapter <|.. InstantMessagingNotificationAdapter

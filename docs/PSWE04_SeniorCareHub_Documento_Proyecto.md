@@ -12,8 +12,8 @@
 | **URL del repositorio** | https://github.com/pswe04-seniorcarehub/pswe04-senior-care-hub-c2-2026.git |
 | **Docente** | Juan Mauricio Leandro Jimenez |
 | **Cuatrimestre** | 2026 — II Cuatrimestre |
-| **Versión del documento** | 0.3 — Avance 2(S11) |
-| **Fecha de última actualización** | 2026-07-26 |
+| **Versión del documento** | 1.0 — Entrega final (S14) |
+| **Fecha de última actualización** | 2026-08-11 |
 
 ---
 
@@ -24,6 +24,7 @@
 | 0.1 | 2026-05-26 | Propuesta (S03) | Creación del documento inicial | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 | 0.2 | 2026-06-24 | Avance 1 (S07) | Desarrollo del contexto del sistema, alcance, usuarios, stakeholders, drivers arquitectónicos, escenarios de calidad y vista de contexto C4. | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 | 0.3 | 2026-07-26 | Avance 2 (S11) | Incorporación de la vista de contenedores, estilo arquitectónico, análisis de alternativas, trade-offs, ADRs y primer diseño detallado de componentes. | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
+| 1.0 | 2026-08-11 | Entrega final (S14) | Documento completo | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 
 ---
 
@@ -46,6 +47,16 @@
 8. [Estilo arquitectónico](#8-estilo-arquitectónico)
 9. [Registro de decisiones — ADRs](#9-registro-de-decisiones--adrs)
 10. [Diseño detallado de componentes](#10-diseño-detallado-de-componentes)
+   - 10.1 [Motor de reglas](#101-componente-1--motor-de-reglas)
+   - 10.2 [Servicio de Notificaciones](#102-componente-2--servicio-de-notificaciones)
+   - 10.3 [Servicio de Ingesta de Eventos](#103-componente-3--servicio-de-ingesta-de-eventos)
+   - 10.4 [API de Aplicación: Gestión de Configuración de Perfiles](#104-componente-4--api-de-aplicación-gestión-de-configuración-de-perfiles)
+11. [Patrones de diseño aplicados](#11-patrones-de-diseño-aplicados)
+   - 11.1 [Transactional Outbox](#patrón-1--transactional-outbox)
+   - 11.2 [Strategy](#patrón-2--strategy)
+   - 11.3 [Factory](#patrón-3--factory)
+   - 11.4 [Adapter](#patrón-4--adapter)
+   - 11.5 [Repository](#patrón-5--repository)
 12. [Principios y técnicas habilitadoras — evidencia](#12-principios-y-técnicas-habilitadoras--evidencia)
    - 12.1 [Evidencia de principios de diseño](#121-evidencia-de-principios-de-diseño)
    - 12.2 [Técnicas habilitadoras evidenciadas](#122-técnicas-habilitadoras-evidenciadas)
@@ -1469,7 +1480,7 @@ Puede ocurrir que Service Bus acepte un mensaje y falle el marcado local de `Pub
 
 ## 10. Diseño detallado de componentes
 
-### Componente 1 — Motor de reglas
+### 10.1 Componente 1 — Motor de reglas
 
 **Responsabilidad:** Analizar los eventos recibidos desde el Bus de Mensajería, evaluarlos de acuerdo con las reglas configurables y el perfil de monitoreo del adulto mayor asociado, determinar si representan una situación de riesgo, establecer su nivel de criticidad y generar una alerta cuando corresponda, aplicando mecanismos de confirmación, deduplicación e idempotencia para evitar falsas alarmas y el procesamiento repetido de un mismo evento.
 
@@ -1481,9 +1492,9 @@ El siguiente diagrama presenta el diseño interno del componente Motor de Reglas
 
 El diseño se organiza alrededor de `RuleProcessingService`, responsable de coordinar el flujo completo de procesamiento. El procesamiento inicia en `EventMessageConsumer`, que recibe los eventos desde el Bus de Mensajería y delega su procesamiento mediante la interfaz `IRuleProcessingService`. A partir de este punto, `RuleProcessingService` coordina la validación del evento, la recuperación del perfil de monitoreo y de las reglas activas correspondientes a la versión del perfil, la evaluación mediante estrategias especializadas, la aplicación de los mecanismos de confirmación y deduplicación, la persistencia del estado temporal cuando la regla lo requiere, la generación y almacenamiento de la alerta, y finalmente su publicación mediante el mecanismo de mensajería configurado.
 
-![Diagrama de clases — Componente 1](../diagramas/clases-componente1.png)
+![Diagrama de clases — Componente 1](../diagramas/componente1/clases-componente1.png)
 *Figura 10 — Diagrama de clases de diseño: Motor de Reglas*
-> **Imagen en tamaño completo:** [`clases-componente1.png`](../diagramas/clases-componente1.png) · **Fuente editable:** [`clases-componente1.mmd`](../diagramas/clases-componente1.mmd)
+> **Imagen en tamaño completo:** [`clases-componente1.png`](../diagramas/componente1/clases-componente1.png) · **Fuente editable:** [`clases-componente1.mmd`](../diagramas/componente1/clases-componente1.mmd)
 
 #### 10.1.2 Contratos de interfaz
 
@@ -1539,19 +1550,19 @@ El análisis de robustez permite verificar que el diseño del Motor de Reglas co
 
 El siguiente diagrama de secuencia representa el flujo principal de la interacción entre los principales objetos del componente Motor de Reglas, desde la recepción del evento hasta la generación, almacenamiento y publicación de una alerta cuando se detecta una situación de riesgo. El componente obtiene la versión correspondiente del perfil de monitoreo y las reglas activas aplicables, evalúa el evento mediante la estrategia correspondiente y aplica los criterios de confirmación definidos. Cuando la regla lo requiere, consulta y actualiza el estado temporal de confirmación para correlacionar eventos relacionados y determinar si la condición de riesgo ha sido confirmada. Posteriormente, verifica que no exista un procesamiento duplicado y, cuando corresponde, genera la alerta a partir de la regla confirmada y de los eventos que participaron en la confirmación, la almacena y la publica en el Bus de Mensajería.
 
-![Secuencia — Componente 1, flujo principal](../diagramas/secuencia-comp1-principal.png)
+![Secuencia — Componente 1, flujo principal](../diagramas/componente1/secuencia-comp1-principal.png)
 *Figura 11 — Secuencia: Procesamiento de un evento con generación de alerta*
-> **Imagen en tamaño completo:** [`secuencia-comp1-principal.png`](../diagramas/secuencia-comp1-principal.png) · **Fuente editable:** [`secuencia-comp1-principal.mmd`](../diagramas/secuencia-comp1-principal.mmd)
+> **Imagen en tamaño completo:** [`secuencia-comp1-principal.png`](../diagramas/componente1/secuencia-comp1-principal.png) · **Fuente editable:** [`secuencia-comp1-principal.mmd`](../diagramas/componente1/secuencia-comp1-principal.mmd)
 
 El siguiente diagrama de secuencia representa un camino de error significativo en el que ocurre una falla técnica durante la persistencia del estado temporal de confirmación. El evento ha superado la validación, se han recuperado la versión correspondiente del perfil y las reglas aplicables, y la evaluación ha determinado que la condición requiere confirmación. Sin embargo, al intentar almacenar o actualizar el ConfirmationState, el repositorio produce una excepción. El procesamiento se detiene antes de verificar duplicados, generar, almacenar o publicar una alerta. Como el consumidor no confirma el mensaje al Bus de Mensajería, este permanece disponible para su reentrega mediante el mecanismo de reintentos de la infraestructura de mensajería.
 
-![Secuencia — Componente 1, camino de error](../diagramas/secuencia-comp1-error.png)
+![Secuencia — Componente 1, camino de error](../diagramas/componente1/secuencia-comp1-error.png)
 *Figura 12 — Secuencia: Falla al persistir el estado temporal de confirmación*
-> **Imagen en tamaño completo:** [`secuencia-comp1-error.png`](../diagramas/secuencia-comp1-error.png) · **Fuente editable:** [`secuencia-comp1-error.mmd`](../diagramas/secuencia-comp1-error.mmd)
+> **Imagen en tamaño completo:** [`secuencia-comp1-error.png`](../diagramas/componente1/secuencia-comp1-error.png) · **Fuente editable:** [`secuencia-comp1-error.mmd`](../diagramas/componente1/secuencia-comp1-error.mmd)
 
 ---
 
-### Componente 2 — Servicio de Notificaciones
+### 10.2 Componente 2 — Servicio de Notificaciones
 
 **Responsabilidad:** Garantizar que las alertas confirmadas lleguen oportunamente a los familiares y cuidadores mediante los canales de comunicación configurados, gestionando la selección de destinatarios, la determinación de la política de entrega, la ejecución de la estrategia de notificación correspondiente, la comunicación con los proveedores externos y el registro del resultado de cada intento de notificación.
 
@@ -1563,9 +1574,9 @@ El siguiente diagrama presenta el diseño interno del componente Servicio de Not
 
 El diseño se organiza alrededor de `NotificationProcessingService`, responsable de coordinar el flujo completo de procesamiento de una alerta confirmada. El procesamiento inicia en `AlertMessageConsumer`, que recibe las alertas desde el Bus de Mensajería y delega su procesamiento mediante la interfaz `INotificationProcessingService`. A partir de este punto, `NotificationProcessingService` coordina la recuperación de la configuración de notificación correspondiente a la versión del perfil asociada a la alerta, verifica el estado previo del procesamiento para garantizar la idempotencia, determina los destinatarios y canales aplicables mediante `ChannelSelectionService`, resuelve la estrategia de entrega más adecuada considerando la severidad de la alerta y la configuración del perfil mediante `DeliveryPolicyResolver`, delega la ejecución de los envíos a la estrategia correspondiente (`IChannelDeliveryStrategy`), la cual utiliza `NotificationAdapterFactory` para seleccionar los adaptadores apropiados y comunicarse con los proveedores externos. Finalmente, registra de forma durable el estado de cada notificación y sus intentos de entrega, y devuelve el resultado global del procesamiento al consumidor.
 
-![Diagrama de clases — Componente 2](../diagramas/clases-componente2.png)
+![Diagrama de clases — Componente 2](../diagramas/componente2/clases-componente2.png)
 *Figura 13 — Diagrama de clases de diseño: Servicio de Notificaciones*
-> **Imagen en tamaño completo:** [`clases-componente2.png`](../diagramas/clases-componente2.png) · **Fuente editable:** [`clases-componente2.mmd`](../diagramas/clases-componente2.mmd)
+> **Imagen en tamaño completo:** [`clases-componente2.png`](../diagramas/componente2/clases-componente2.png) · **Fuente editable:** [`clases-componente2.mmd`](../diagramas/componente2/clases-componente2.mmd)
 
 #### 10.2.2 Contratos de interfaz
 
@@ -1607,19 +1618,19 @@ El diseño se organiza alrededor de `NotificationProcessingService`, responsable
 
 El siguiente diagrama de secuencia representa el flujo principal de interacción entre los objetos del componente Servicio de Notificaciones para el procesamiento de una alerta crítica, desde la recepción de una alerta confirmada hasta la confirmación del mensaje en el Bus de Mensajería. El componente recupera la configuración de notificación correspondiente al perfil del adulto mayor, verifica si la notificación ya fue procesada para evitar duplicados, determina los canales aplicables para cada destinatario y resuelve la estrategia de entrega correspondiente. En este escenario se utiliza una estrategia de envío paralelo, registrando posteriormente los intentos de entrega, actualizando el estado de la notificación y devolviendo el resultado del procesamiento al consumidor.
 
-![Secuencia — Componente 2, flujo principal](../diagramas/secuencia-comp2-principal.png)
+![Secuencia — Componente 2, flujo principal](../diagramas/componente2/secuencia-comp2-principal.png)
 *Figura 14 — Secuencia: Procesamiento de una alerta con entrega de notificación*
-> **Imagen en tamaño completo:** [`secuencia-comp2-principal.png`](../diagramas/secuencia-comp2-principal.png) · **Fuente editable:** [`secuencia-comp2-principal.mmd`](../diagramas/secuencia-comp2-principal.mmd)
+> **Imagen en tamaño completo:** [`secuencia-comp2-principal.png`](../diagramas/componente2/secuencia-comp2-principal.png) · **Fuente editable:** [`secuencia-comp2-principal.mmd`](../diagramas/componente2/secuencia-comp2-principal.mmd)
 
 El siguiente diagrama de secuencia representa un camino de error en el que ocurre una falla transitoria durante el envío de una notificación. El componente determina la estrategia de entrega aplicable, ejecuta el envío mediante el proveedor correspondiente y registra de forma durable el intento realizado. Al no completarse exitosamente la entrega, la notificación se actualiza al estado PendingRetry y el resultado del procesamiento indica que el mensaje no debe confirmarse al Bus de Mensajería, permitiendo su posterior reentrega conforme a la política de mensajería.
 
-![Secuencia — Componente 2, camino de error](../diagramas/secuencia-comp2-error.png)
+![Secuencia — Componente 2, camino de error](../diagramas/componente2/secuencia-comp2-error.png)
 *Figura 15 — Secuencia: Falla transitoria en el envío mediante el único canal disponible*
-> **Imagen en tamaño completo:** [`secuencia-comp2-error.png`](../diagramas/secuencia-comp2-error.png) · **Fuente editable:** [`secuencia-comp2-error.mmd`](../diagramas/secuencia-comp2-error.mmd)
+> **Imagen en tamaño completo:** [`secuencia-comp2-error.png`](../diagramas/componente2/secuencia-comp2-error.png) · **Fuente editable:** [`secuencia-comp2-error.mmd`](../diagramas/componente2/secuencia-comp2-error.mmd)
 
 ---
 
-### Componente 3 – Servicio de Ingesta de Eventos
+### 10.3 Componente 3 – Servicio de Ingesta de Eventos
 
 **Responsabilidad:** Garantizar la recepción confiable de los eventos provenientes de fuentes simuladas o de dispositivos wearable, mediante la autenticación del emisor, la validación técnica del evento, la detección de duplicados, su aceptación durable mediante persistencia y la preparación para su publicación asíncrona hacia el Bus de Mensajería, preservando la integridad y disponibilidad de la información para su posterior procesamiento.
 
@@ -1631,9 +1642,9 @@ El siguiente diagrama presenta el diseño interno del componente Servicio de Ing
 
 El diseño se organiza alrededor de `EventIngestionService`, que coordina la validación y persistencia atómica del `MonitoringEvent` y su `OutboxMessage`. La publicación se realiza posteriormente mediante `OutboxPublisher`, que procesa los mensajes pendientes y utiliza `IEventPublisher` para enviarlos al Bus de Mensajería, preservando los eventos incluso ante posibles fallos temporales en la publicación.
 
-![Diagrama de clases — Componente 3](../diagramas/clases-componente3.png)
+![Diagrama de clases — Componente 3](../diagramas/componente3/clases-componente3.png)
 *Figura 16 — Diagrama de clases de diseño: Servicio de Ingesta de Eventos*
-> **Imagen en tamaño completo:** [`clases-componente3.png`](../diagramas/clases-componente3.png) · **Fuente editable:** [`clases-componente3.mmd`](../diagramas/clases-componente3.mmd)
+> **Imagen en tamaño completo:** [`clases-componente3.png`](../diagramas/componente3/clases-componente3.png) · **Fuente editable:** [`clases-componente3.mmd`](../diagramas/componente3/clases-componente3.mmd)
 
 
 #### 10.3.2 Contratos de interfaz
@@ -1668,19 +1679,19 @@ El diseño se organiza alrededor de `EventIngestionService`, que coordina la val
 
 El siguiente diagrama de secuencia representa el flujo principal del Servicio de Ingesta de Eventos, desde la recepción de un evento proveniente de una fuente de monitoreo hasta su aceptación durable y posterior publicación en el Bus de Mensajería. El componente autentica al emisor, valida técnicamente el evento y persiste atómicamente el MonitoringEvent junto con su OutboxMessage. Posteriormente, OutboxPublisher recupera el mensaje pendiente y gestiona su publicación al Bus, actualizando su estado cuando la publicación se completa satisfactoriamente.
 
-![Secuencia — Componente 3, flujo principal](../diagramas/secuencia-comp3-principal.png)
+![Secuencia — Componente 3, flujo principal](../diagramas/componente3/secuencia-comp3-principal.png)
 *Figura 17 — Secuencia: Aceptación durable y publicación de un evento de monitoreo*
-> **Imagen en tamaño completo:** [`secuencia-comp3-principal.png`](../diagramas/secuencia-comp3-principal.png) · **Fuente editable:** [`secuencia-comp3-principal.mmd`](../diagramas/secuencia-comp3-principal.mmd)
+> **Imagen en tamaño completo:** [`secuencia-comp3-principal.png`](../diagramas/componente3/secuencia-comp3-principal.png) · **Fuente editable:** [`secuencia-comp3-principal.mmd`](../diagramas/componente3/secuencia-comp3-principal.mmd)
 
 El siguiente diagrama de secuencia representa un camino de error en el que ocurre una falla transitoria durante la publicación de un evento previamente aceptado de forma durable. El MonitoringEvent y su OutboxMessage permanecen persistidos, mientras OutboxPublisher registra la falla y mantiene el mensaje disponible para un intento posterior. De esta forma, una indisponibilidad temporal del Bus de Mensajería no provoca la pérdida del evento ni afecta su aceptación previa.
 
-![Secuencia — Componente 3, camino de error](../diagramas/secuencia-comp3-error.png)
+![Secuencia — Componente 3, camino de error](../diagramas/componente3/secuencia-comp3-error.png)
 *Figura 18 — Secuencia: Falla transitoria durante la publicación de un evento*
-> **Imagen en tamaño completo:** [`secuencia-comp3-error.png`](../diagramas/secuencia-comp3-error.png) · **Fuente editable:** [`secuencia-comp3-error.mmd`](../diagramas/secuencia-comp3-error.mmd)
+> **Imagen en tamaño completo:** [`secuencia-comp3-error.png`](../diagramas/componente3/secuencia-comp3-error.png) · **Fuente editable:** [`secuencia-comp3-error.mmd`](../diagramas/componente3/secuencia-comp3-error.mmd)
 
 --- 
 
-### Componente 4 – API de Aplicación: Gestión de Configuración de Perfiles
+### 10.4 Componente 4 – API de Aplicación: Gestión de Configuración de Perfiles
 
 > Para efectos de este diseño detallado, el alcance se limita a la gestión de la configuración de perfiles y excluye las funcionalidades del mismo contenedor relacionadas con la autenticación y autorización de usuarios, las consultas de estado e historial, la gestión de usuarios y cualquier otra operación de la API de Aplicación no asociada a la configuración versionada de perfiles.
 
@@ -1694,9 +1705,9 @@ El siguiente diagrama presenta el diseño interno correspondiente a la Gestión 
 
 El diseño se organiza alrededor de `ProfileConfigurationService`, responsable de coordinar la recuperación de la versión activa, la creación de una nueva `ProfileConfigurationVersion`, su validación y persistencia. Cada versión agrupa de forma coherente las reglas, destinatarios, canales y preferencias correspondientes. Una nueva versión se activa únicamente cuando toda la configuración ha sido validada y persistida de forma atómica, mientras que las versiones previamente publicadas pasan a formar parte del historial de configuración y permanecen persistidas para garantizar la trazabilidad y auditoría de los cambios.
 
-![Diagrama de clases — Componente 4](../diagramas/clases-componente4.png)
+![Diagrama de clases — Componente 4](../diagramas/componente4/clases-componente4.png)
 *Figura 19 — Diagrama de clases de diseño: Gestión de configuración de perfiles.*
-> **Imagen en tamaño completo:** [`clases-componente4.png`](../diagramas/clases-componente4.png) · **Fuente editable:** [`clases-componente4.mmd`](../diagramas/clases-componente4.mmd)
+> **Imagen en tamaño completo:** [`clases-componente4.png`](../diagramas/componente4/clases-componente4.png) · **Fuente editable:** [`clases-componente4.mmd`](../diagramas/componente4/clases-componente4.mmd)
 
 #### 10.4.2 Contratos de interfaz
 
@@ -1729,15 +1740,102 @@ El diseño se organiza alrededor de `ProfileConfigurationService`, responsable d
 
 El siguiente diagrama de secuencia representa el flujo principal para publicar una nueva versión de configuración de perfil. El componente recupera la versión activa, construye en memoria una nueva `ProfileConfigurationVersion` a partir de los cambios solicitados, valida la consistencia de la configuración y, al ser válida, registra la información de auditoría y persiste de forma atómica la nueva versión junto con sus perfiles y elementos asociados. Como parte de la misma operación, la nueva versión queda activa y la anterior pasa a formar parte del historial, donde permanece persistida para fines de trazabilidad y auditoría.
 
-![Secuencia — Componente 4, flujo principal](../diagramas/secuencia-comp4-principal.png)
+![Secuencia — Componente 4, flujo principal](../diagramas/componente4/secuencia-comp4-principal.png)
 *Figura 20 — Secuencia: Publicación exitosa de una nueva versión de configuración de perfil*
-> **Imagen en tamaño completo:** [`secuencia-comp4-principal.png`](../diagramas/secuencia-comp4-principal.png) · **Fuente editable:** [`secuencia-comp4-principal.mmd`](../diagramas/secuencia-comp4-principal.mmd)
+> **Imagen en tamaño completo:** [`secuencia-comp4-principal.png`](../diagramas/componente4/secuencia-comp4-principal.png) · **Fuente editable:** [`secuencia-comp4-principal.mmd`](../diagramas/componente4/secuencia-comp4-principal.mmd)
 
 El siguiente diagrama de secuencia representa un camino de error en el que la nueva `ProfileConfigurationVersion` ha sido construida y validada correctamente, pero ocurre una falla técnica durante su persistencia y activación. Al tratarse de una operación transaccional, los cambios no se confirman y la transacción se revierte, por lo que la versión previamente activa permanece vigente y no se genera una configuración parcial. La falla se propaga como un error técnico y la nueva versión podrá volver a publicarse una vez recuperada la disponibilidad del almacenamiento.
 
-![Secuencia — Componente 4, camino de error](../diagramas/secuencia-comp4-error.png)
+![Secuencia — Componente 4, camino de error](../diagramas/componente4/secuencia-comp4-error.png)
 *Figura 21 — Secuencia: Falla al persistir y activar una nueva versión de configuración*
-> **Imagen en tamaño completo:** [`secuencia-comp4-error.png`](../diagramas/secuencia-comp4-error.png) · **Fuente editable:** [`secuencia-comp4-error.mmd`](../diagramas/secuencia-comp4-error.mmd)
+> **Imagen en tamaño completo:** [`secuencia-comp4-error.png`](../diagramas/componente4/secuencia-comp4-error.png) · **Fuente editable:** [`secuencia-comp4-error.mmd`](../diagramas/componente4/secuencia-comp4-error.mmd)
+
+---
+
+## 11. Patrones de diseño aplicados
+
+En el presente apartado se documentan los principales patrones de diseño aplicados en **SeniorCareHub**, correspondientes a decisiones arquitectónicas adoptadas durante el diseño detallado de los componentes presentados en la Sección 10. Se incluyen aquellos patrones cuya aplicación resuelve problemas específicos del sistema y puede evidenciarse directamente en el diseño de los componentes, sus contratos y sus diagramas de comportamiento, por constituir las decisiones de diseño más representativas de la solución propuesta.
+
+---
+
+### Patrón 1 — Transactional Outbox
+
+| Campo | Detalle |
+|---|---|
+| **Categoría** | Comportamiento |
+| **Ubicación en el sistema** | Componente 3 — Servicio de Ingesta de Eventos, Sección 10.3 |
+| **Problema que resuelve** | Evitar la pérdida de un `MonitoringEvent` aceptado y persistido correctamente por el Servicio de Ingesta debido a una falla temporal durante su publicación al Bus de Mensajería, impidiendo su procesamiento posterior por el Motor de Reglas. |
+| **Alternativa considerada** | Persistir el MonitoringEvent y publicarlo directamente al Bus de Mensajería de forma sincrónica dentro del mismo flujo de la solicitud, considerando completada la operación únicamente cuando ambas acciones finalizaran correctamente. Ante una falla durante la publicación, el servicio podría realizar reintentos inmediatos o devolver un error al emisor. |
+| **Por qué el patrón y no la alternativa** | Porque desacopla la aceptación del `MonitoringEvent` de su publicación al Bus de Mensajería. En SeniorCareHub, la pérdida de un evento de monitoreo no es aceptable, ya que podría impedir la detección oportuna de una situación crítica del adulto mayor. Al persistir atómicamente el evento junto con su `OutboxMessage`, la aceptación deja de depender de la disponibilidad inmediata del Bus. Si ocurre una falla temporal durante la publicación, el mensaje permanece persistido y puede ser publicado posteriormente por `OutboxPublisher`, evitando la pérdida del evento aceptado y permitiendo su recuperación automática sin requerir reintentos sincrónicos ni que el emisor vuelva a enviarlo. |
+
+![Aplicación del patrón Transactional Outbox en el Componente 3 — Servicio de Ingesta de Eventos](../diagramas/patrones/patron-transactional-outbox.png)
+*Figura 22 — Aplicación del patrón Transactional Outbox en Componente 3 — Servicio de Ingesta de Eventos*
+
+> **Imagen en tamaño completo:** [`patron-transactional-outbox.png`](../diagramas/patrones/patron-transactional-outbox.png) · **Fuente editable:** [`patron-transactional-outbox.mmd`](../diagramas/patrones/patron-transactional-outbox.mmd)
+
+---
+
+### Patrón 2 — Strategy
+
+| Campo | Detalle |
+|---|---|
+| **Categoría** | Comportamiento |
+| **Ubicación en el sistema** | Componente 2 — Servicio de Notificaciones, Sección 10.2 |
+| **Problema que resuelve**   | Permitir que el Servicio de Notificaciones aplique distintas políticas de entrega según la configuración del perfil y la severidad de la alerta, incluyendo el envío paralelo por múltiples canales o el intento secuencial por prioridad con fallback, sin incorporar cada algoritmo directamente en la lógica principal de procesamiento. Esto permite reducir la latencia asociada a intentos secuenciales cuando se trata de eventos críticos, favoreciendo una entrega oportuna. |
+| **Alternativa considerada** | Implementar una única estrategia de entrega secuencial para todas las notificaciones en `NotificationProcessingService`, intentando un canal a la vez y recurriendo al siguiente únicamente cuando el intento anterior falla, sin diferenciar entre distintos escenarios de entrega definidos por las preferencias de envío de cada perfil y la severidad de la alerta. |
+| **Por qué el patrón y no la alternativa** | El patrón permite seleccionar la política de entrega más adecuada según la severidad de la alerta y la configuración del perfil. En eventos críticos, una estrategia exclusivamente secuencial podría generar demoras adicionales si un canal falla antes de intentar el siguiente, afectando la entrega oportuna de la notificación. Strategy permite utilizar entrega paralela cuando el contexto lo requiere y mantener otras políticas como PriorityFallback para escenarios distintos, sin modificar la lógica principal de `NotificationProcessingService`. Además, desacopla las políticas de entrega del procesamiento de notificaciones, reduciendo el impacto de cambios futuros o de la incorporación de nuevas políticas de entrega. |
+
+![Aplicación del patrón Strategy en Componente 2 — Servicio de Notificaciones](../diagramas/patrones/patron-strategy.png)
+*Figura 23 — Aplicación del patrón Strategy en Componente 2 — Servicio de Notificaciones*
+> **Imagen en tamaño completo:** [`patron-strategy.png`](../diagramas/patrones/patron-strategy.png) · **Fuente editable:** [`patron-strategy.mmd`](../diagramas/patrones/patron-strategy.mmd)
+
+---
+
+### Patrón 3 — Factory 
+
+| Campo | Detalle |
+|---|---|
+| **Categoría** | Creacional |
+| **Ubicación en el sistema** | Componente 2 — Servicio de Notificaciones, Sección 10.2 |
+| **Problema que resuelve**   | Seleccionar la implementación de `INotificationAdapter` adecuada según el canal y el proveedor configurados, evitando que las estrategias de entrega dependan de implementaciones concretas de adaptadores. |
+| **Alternativa considerada** | Incorporar la lógica necesaria en `ParallelDeliveryStrategy` y `PriorityFallbackDeliveryStrategy` para identificar e instanciar el adaptador correspondiente según el canal y proveedor requerido. |
+| **Por qué el patrón y no la alternativa** | El patrón centraliza la selección del adaptador apropiado en `NotificationAdapterFactory`, permitiendo que las estrategias de entrega trabajen únicamente con el contrato `INotificationAdapter`. Así, las estrategias permanecen desacopladas de las implementaciones concretas y la incorporación de nuevos canales, proveedores o adaptadores se limita a la Factory y al nuevo Adapter correspondiente, sin modificar la lógica de entrega existente y reduciendo el impacto de futuros cambios. |
+
+![Aplicación del patrón Factory en Componente 2 — Servicio de Notificaciones](../diagramas/patrones/patron-factory.png)
+*Figura 24 — Aplicación del patrón Factory en Componente 2 — Servicio de Notificaciones*
+> **Imagen en tamaño completo:** [`patron-factory.png`](../diagramas/patrones/patron-factory.png) · **Fuente editable:** [`patron-factory.mmd`](../diagramas/patrones/patron-factory.mmd)
+
+---
+
+### Patrón 4 — Adapter
+
+| Campo | Detalle |
+|---|---|
+| **Categoría** | Estructural |
+| **Ubicación en el sistema** | Componente 2 — Servicio de Notificaciones, Sección 10.2 |
+| **Problema que resuelve**   | Desacoplar al Servicio de Notificaciones de los proveedores y canales de entrega y de los detalles técnicos propios de los proveedores externos, como sus APIs, formatos de solicitud, mecanismos de autenticación y respuestas, permitiendo soportar SMS, correo, mensajería y futuros canales sin modificar la lógica principal del componente. |
+| **Alternativa considerada** | Incorporar la lógica específica de cada proveedor  en `NotificationProcessingService`, utilizando condiciones según el canal o proveedor seleccionado y construyendo directamente las solicitudes requeridas por cada proveedor externo. |
+| **Por qué el patrón y no la alternativa** | El patrón permite que el Servicio de Notificaciones trabaje mediante un contrato común (`INotificationAdapter`), independientemente del proveedor o canal resuelto por `NotificationAdapterFactory`. Cada implementación encapsula la comunicación entre el Servicio de Notificaciones y el contrato particular del proveedor externo, adaptando el modelo interno de SeniorCareHub al formato requerido por dicho proveedor. Esto permite incorporar o sustituir canales y proveedores de notificación sin modificar la lógica principal de procesamiento ni las estrategias de entrega, reduciendo el acoplamiento con servicios externos y el impacto de sus cambios. |
+
+![Aplicación del patrón Adapter en Componente 2 — Servicio de Notificaciones](../diagramas/patrones/patron-adapter.png)
+*Figura 25 — Aplicación del patrón Adapter en Componente 2 — Servicio de Notificaciones*
+> **Imagen en tamaño completo:** [`patron-adapter.png`](../diagramas/patrones/patron-adapter.png) · **Fuente editable:** [`patron-adapter.mmd`](../diagramas/patrones/patron-adapter.mmd)
+
+---
+
+### Patrón 5 — Repository
+
+| Campo | Detalle |
+|---|---|
+| **Categoría** | Estructural |
+| **Ubicación en el sistema** | Aplica transversalmente en todos los Componentes (1, 2, 3 y 4) detallados en la Sección 10 |
+| **Problema que resuelve**   | Desacoplar la lógica de negocio de los mecanismos de persistencia, proporcionando un acceso uniforme a los datos del dominio mediante contratos de repositorio, independientemente de la tecnología utilizada para almacenarlos. |
+| **Alternativa considerada** | Incorporara en los servicios de cada componente la lógica necesaria para acceder directamente a la base de datos, incorporando consultas, operaciones de persistencia y detalles de PostgreSQL. |
+| **Por qué el patrón y no la alternativa** | El patrón centraliza el acceso a la persistencia mediante contratos específicos para cada componente (`IMonitoringProfileRepository`, `INotificationProfileRepository`, `IEventIngestionRepository`, `IProfileConfigurationRepository`, entre otros), permitiendo que la lógica de negocio trabaje únicamente con abstracciones. Esto reduce el acoplamiento con PostgreSQL, facilita las pruebas unitarias mediante implementaciones simuladas y limita el impacto de cambios futuros en la tecnología o estrategia de persistencia. |
+
+![Aplicación transversal del patrón Repository en los Componentes 1, 2, 3 y 4](../diagramas/patrones/patron-repository.png)
+*Figura 26 — Aplicación transversal del patrón Repository en los Componentes 1, 2, 3 y 4*
+> **Imagen en tamaño completo:** [`patron-repository.png`](../diagramas/patrones/patron-repository.png) · **Fuente editable:** [`patron-repository.mmd`](../diagramas/patrones/patron-repository.mmd)
 
 ---
 
