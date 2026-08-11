@@ -2102,4 +2102,49 @@ El glosario define el lenguaje ubicuo utilizado en SeniorCareHub. Los términos 
 | **Wearable simulado** | Sistema externo que representa al dispositivo de monitoreo y emite eventos simulados de movimiento, inactividad, ubicación u otras condiciones definidas por el proyecto. No se utiliza hardware físico real (REST-03). |
 | **Zona segura** | Área geográfica configurada como perímetro esperado para un adulto mayor. Las reglas relacionadas se evalúan mediante `SafeZoneRuleEvaluator`. |
 
+---
+
+# 17. Referencias
+
+Las referencias se presentan en formato APA y se limitan a fuentes utilizadas para fundamentar conceptos, patrones, decisiones o tecnologías mencionadas en el documento.
+
+## 17.1 Arquitectura y diseño de software
+
+- Bass, L., Clements, P., & Kazman, R. (2021). *Software Architecture in Practice* (4th ed.). Addison-Wesley.
+
+- Brown, S. (2014). *Software Architecture for Developers*. Leanpub.
+
+- Brown, S. (s. f.). *The C4 model for visualising software architecture*. https://c4model.com/
+
+- Budgen, D. (2003). *Software Design* (2nd ed.). Addison-Wesley.
+
+- Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1995). *Design Patterns: Elements of Reusable Object-Oriented Software*. Addison-Wesley.
+
+- Gomaa, H. (2011). *Software Modeling and Design: UML, Use Cases, Patterns, and Software Architectures*. Cambridge University Press.
+
+## 17.2 Patrones empresariales e integración
+
+- Fowler, M. (2002). *Patterns of Enterprise Application Architecture*. Addison-Wesley.
+
+- Hohpe, G., & Woolf, B. (2003). *Enterprise Integration Patterns: Designing, Building, and Deploying Messaging Solutions*. Addison-Wesley.
+
+- Richardson, C. (2018). *Microservices Patterns: With Examples in Java*. Manning Publications.
+
+
+## 17.3 Seguridad y privacidad
+
+- Asamblea Legislativa de la República de Costa Rica. (2011, 5 de setiembre). *Ley N.° 8968: Protección de la Persona frente al Tratamiento de sus Datos Personales*. *La Gaceta*, n.° 170, San José, Costa Rica.
+
+- Shostack, A. (2014). *Threat Modeling: Designing for Security*. Wiley.
+
+## 17.4 Documentación técnica de Microsoft Azure
+
+- Microsoft. (s. f.). *Azure Service Bus documentation*. Microsoft Learn. https://learn.microsoft.com/azure/service-bus-messaging/
+
+- Microsoft. (s. f.). *Azure Database for PostgreSQL documentation*. Microsoft Learn. https://learn.microsoft.com/azure/postgresql/
+
+- Microsoft. (s. f.). *Managed identities for Azure resources*. Microsoft Learn. https://learn.microsoft.com/entra/identity/managed-identities-azure-resources/
+
+
+
 *Documento generado bajo el template estándar PSWE-04 — Universidad Cenfotec — Maestría Profesional en Ingeniería del Software*
