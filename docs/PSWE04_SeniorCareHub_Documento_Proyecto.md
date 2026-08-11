@@ -2039,4 +2039,67 @@ Conviene cerrar señalando qué resistiría a todas las evoluciones anteriores. 
 
 La frontera de puertos y adaptadores adoptada en §8.1 cumple una función equivalente en la dimensión tecnológica: absorbe el cambio de proveedores, de canales y eventualmente de plataforma de mensajería sin propagarlo hacia la lógica de detección, que es donde reside el valor del sistema.
  
+---
+
+# APÉNDICES
+
+## 16. Glosario
+El glosario define el lenguaje ubicuo utilizado en SeniorCareHub. Los términos se presentan según el significado que tienen dentro del proyecto y no necesariamente como definiciones generales aplicables a cualquier sistema.
+
+| Término | Definición |
+|---|---|
+| **Aceptación durable** | Momento a partir del cual SeniorCareHub considera que un evento ha quedado almacenado de forma persistente y puede recuperarse después de una falla. En el Servicio de Ingesta se logra al confirmar la transacción que almacena `MonitoringEvent` junto con su `OutboxMessage`. QS-02 mide la latencia a partir de este punto. |
+| **ADR (Architecture Decision Record)** | Documento que registra una decisión arquitectónica significativa, su contexto, alternativas evaluadas, consecuencias y condiciones de revisión (§9). |
+| **Adulto Mayor** | Usuario final monitoreado por SeniorCareHub. Puede consultar su propio estado e historial mediante la App Web y se encuentra asociado a un perfil individual de monitoreo. |
+| **Alerta** | Resultado confirmado del Motor de Reglas cuando uno o más eventos cumplen una condición de riesgo según las reglas y criterios de confirmación aplicables. La alerta se publica hacia el Servicio de Notificaciones y conserva trazabilidad hacia los eventos y la versión de configuración utilizados. |
+| **AMQP (Advanced Message Queuing Protocol)** | Protocolo de mensajería utilizado entre los servicios internos y Azure Service Bus. SeniorCareHub utiliza AMQP 1.0 sobre TLS (§7.2.2). |
+| **At-least-once** | Semántica de entrega en la que un mensaje puede entregarse una o más veces hasta que el consumidor confirma su procesamiento. Obliga a que los consumidores sean idempotentes y toleren reentregas. |
+| **Atributo de calidad** | Propiedad medible del sistema que condiciona decisiones arquitectónicas. Los atributos prioritarios de SeniorCareHub son disponibilidad, rendimiento, resiliencia, seguridad/privacidad y modificabilidad (QA-01 a QA-05). |
+| **Autorización por relación** | Regla de autorización según la cual un actor no obtiene acceso únicamente por poseer un rol válido, sino también por mantener una relación autorizada con el adulto mayor sobre el que intenta consultar o modificar información (QS-04). |
+| **Bitácora de auditoría** | Registro persistente de accesos, cambios y acciones relevantes. QS-04 exige registrar datos como actor, recurso, acción, decisión, motivo, origen y `correlationId`, evitando almacenar innecesariamente el contenido sensible consultado. |
+| **Bus de Mensajería** | Contenedor de infraestructura basado en Azure Service Bus que transporta eventos y alertas entre etapas del pipeline mediante mensajería asíncrona y durable. Proporciona tópicos, suscripciones, reintentos, sesiones y cola de mensajes muertos (§7.2). |
+| **C4 (modelo)** | Modelo de visualización arquitectónica por niveles de abstracción utilizado en SeniorCareHub. El documento emplea contexto o Nivel 1 (§7.1), contenedores o Nivel 2 (§7.2) y componentes o Nivel 3 (§7.7). La vista de despliegue (§7.4) complementa estos niveles mostrando dónde se ejecutan los contenedores. |
+| **Canal de notificación** | Medio utilizado para comunicar una alerta a un destinatario, por ejemplo SMS, correo electrónico o mensajería. Los canales se habilitan y priorizan mediante configuración. |
+| **Cola de mensajes muertos (Dead-Letter Queue / DLQ)** | Mecanismo del intermediario de mensajería que retiene mensajes que no pudieron procesarse correctamente después de aplicar la política configurada de reintentos o que deben separarse para intervención posterior. |
+| **ConfirmationState** | Estado durable utilizado por el Motor de Reglas para conservar una ventana de confirmación pendiente. Permite correlacionar eventos y recuperar el procesamiento después de un reinicio (§7.5.3, §10.1). |
+| **Consistencia eventual** | Modelo en el que un cambio puede no ser visible inmediatamente en todos los componentes del sistema, pero se propaga posteriormente. Es una consecuencia asumida del estilo orientado a eventos (§8.4). |
+| **correlationId** | Identificador propagado entre servicios, mensajes y registros para relacionar las operaciones que pertenecen al mismo flujo distribuido y reconstruir el recorrido de un evento o alerta. |
+| **Cuidador Profesional** | Usuario que supervisa a uno o varios adultos mayores, consulta estado e historial, recibe alertas y puede ajustar configuraciones cuando posee autorización. |
+| **DeadLetter** | Estado asociado al procesamiento fallido de un mensaje cuando este termina en la cola de mensajes muertos del broker. Debe distinguirse de los estados internos de una `Notification`; representa principalmente la situación del mensaje en la infraestructura de mensajería. |
+| **Deduplicación** | Mecanismo para detectar trabajo ya procesado o efectos equivalentes. En Ingesta se apoya en la unicidad de `EventId`; en el Motor de Reglas evita generar alertas equivalentes; en Notificaciones se consulta el tracking previo antes de repetir deliberadamente una entrega. |
+| **Defense in Depth** | Principio de seguridad según el cual la protección se distribuye en varias capas independientes, como autenticación, autorización, TLS, auditoría, protección de datos e identidades administradas (§6, §14.5). |
+| **DeliveryPolicyResolver** | Colaborador del Servicio de Notificaciones que determina qué `IChannelDeliveryStrategy` aplicar según la severidad de la alerta y la política configurada para el perfil (§10.2). |
+| **Escenario de calidad** | Descripción medible de cómo debe responder el sistema ante un estímulo. En SeniorCareHub los escenarios QS-01 a QS-05 se estructuran con fuente del estímulo, estímulo, entorno, artefacto, respuesta y medida de respuesta (§4). |
+| **Estado de notificación** | Estado durable que representa el avance de una `Notification`, por ejemplo `Delivered`, `PendingRetry` o `FallbackInProgress`. El estado del mensaje en la DLQ debe tratarse separadamente como `DeadLetter`. |
+| **Evento de monitoreo (`MonitoringEvent`)** | Registro individual emitido por una fuente de monitoreo y aceptado por el Servicio de Ingesta. Contiene la información mínima necesaria para que el Motor de Reglas determine si existe una situación de riesgo. |
+| **Fallback** | Mecanismo de degradación controlada mediante el cual, si el canal o proveedor prioritario falla, el Servicio de Notificaciones intenta un canal alternativo aplicable según la política configurada (QS-03, ADR-004). |
+| **Falsa alarma** | Alerta que, después de revisión humana, no corresponde a una emergencia real. SeniorCareHub reduce su probabilidad mediante correlación, ventanas de confirmación y deduplicación, sin afirmar que puede eliminarlas por completo. |
+| **Idempotencia** | Propiedad por la que repetir una operación con la misma entrada no debería producir un efecto de negocio adicional no deseado. Es necesaria debido a la semántica *at-least-once*. |
+| **Identidades administradas (Managed Identities)** | Mecanismo de Microsoft Entra ID utilizado para que servicios de Azure accedan a otros recursos sin almacenar credenciales técnicas directamente en la configuración. Resuelve autenticación servicio-a-servicio, no autenticación de usuarios finales (§7.4.2, §14.5). |
+| **INotificationAdapter** | Interfaz interna que normaliza la comunicación con proveedores externos de notificación y evita que sus APIs particulares se propaguen hacia la lógica de negocio (§10.2). |
+| **IRuleEvaluator** | Interfaz del patrón Strategy utilizada por el Motor de Reglas para evaluar diferentes tipos de reglas mediante implementaciones especializadas como `FallRuleEvaluator`, `InactivityRuleEvaluator` y `SafeZoneRuleEvaluator`. |
+| **Menor privilegio (Principle of Least Privilege)** | Principio según el cual un actor o servicio recibe únicamente los permisos necesarios para cumplir su responsabilidad. En la API implica autorización por rol y por relación con el adulto mayor. |
+| **Modificabilidad** | Atributo de calidad QA-05 que expresa la capacidad de cambiar parámetros, perfiles, canales y destinatarios soportados sin recompilar ni redesplegar el núcleo del sistema. |
+| **Motor de Reglas** | Contenedor responsable de consumir eventos, recuperar la configuración aplicable, evaluarlos mediante reglas, aplicar confirmación y deduplicación y generar alertas confirmadas (§7.2, §10.1). |
+| **Notificación (`Notification`)** | Representación del proceso de comunicar una alerta a un destinatario. Conserva su estado global y se relaciona con uno o más `NotificationAttempt`. Una alerta puede originar varias notificaciones para distintos destinatarios. |
+| **NotificationAttempt** | Registro durable de un intento individual de entregar una notificación mediante un canal y proveedor determinados. Conserva fecha, resultado, proveedor, información de falla y datos necesarios para trazabilidad (§10.2). |
+| **OutboxMessage** | Registro durable que representa la intención de publicar posteriormente un evento aceptado hacia el Bus de Mensajería. Se almacena en la misma transacción que `MonitoringEvent`. |
+| **Particionamiento por sesión** | Estrategia de concurrencia que utiliza sesiones del Bus de Mensajería para mantener orden y exclusividad de procesamiento por adulto mayor sin utilizar bloqueos explícitos en el código (§7.5). |
+| **Perfil de monitoreo** | Configuración individual asociada a un adulto mayor que contiene parámetros de monitoreo y reglas aplicables. Forma parte de la configuración versionada utilizada por el Motor de Reglas. |
+| **ProfileVersion** | Identificador de la versión de configuración utilizada durante una evaluación. La versión aplicada debe quedar registrada en la alerta para permitir trazabilidad y para que etapas posteriores recuperen la configuración correspondiente. |
+| **Proveedor externo de notificación** | Servicio fuera del control de SeniorCareHub que realiza la entrega efectiva por SMS, correo o mensajería. Sus contratos y fallos se aíslan mediante `INotificationAdapter` (REST-01, ADR-004). |
+| **Publicación-suscripción (Publish-Subscribe)** | Estilo de mensajería donde los productores publican mensajes en un intermediario y los consumidores los reciben mediante suscripciones, sin que exista una dependencia directa entre productor y consumidor. |
+| **Regla de monitoreo (`MonitoringRule`)** | Configuración que define una condición evaluable sobre un evento, por ejemplo umbral de inactividad, condición de caída o salida de zona segura. |
+| **Resiliencia / Tolerancia a fallos** | Atributo de calidad QA-03 que expresa la capacidad del sistema de conservar trabajo, recuperarse de fallos parciales y evitar la pérdida silenciosa de eventos y alertas. |
+| **Servicio de Ingesta** | Contenedor responsable de autenticar la fuente, validar técnicamente el evento y garantizar su aceptación durable. La publicación posterior al Bus se desacopla mediante Transactional Outbox (§10.3). |
+| **Servicio de Notificaciones** | Contenedor responsable de consumir alertas confirmadas, resolver destinatarios y canales, aplicar una política de entrega, invocar proveedores externos y registrar los resultados de cada intento (§10.2). |
+| **Situación de riesgo** | Condición detectada a partir de uno o más eventos que, después de evaluación y cuando corresponda confirmación, amerita generar una alerta. |
+| **Strategy** | Patrón de diseño que encapsula algoritmos intercambiables detrás de una interfaz común. SeniorCareHub lo utiliza para evaluadores de reglas y estrategias de entrega de notificaciones (§11). |
+| **STRIDE** | Modelo de clasificación de amenazas que agrupa Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service y Elevation of Privilege. Se utiliza en §14.5. |
+| **Transactional Outbox** | Patrón de integración que persiste el cambio de negocio y la intención de publicar un mensaje dentro de la misma transacción local. En SeniorCareHub se aplica al guardar `MonitoringEvent` y `OutboxMessage`, mientras `OutboxPublisher` realiza la publicación posteriormente (§10.3, §11). |
+| **Ventana de confirmación** | Período configurable durante el cual el Motor de Reglas conserva y correlaciona eventos antes de confirmar una situación de riesgo. Reduce falsas alarmas a cambio de consumir parte del presupuesto de latencia (ADR-003). |
+| **Versionado de configuración** | Estrategia por la cual una modificación crea una nueva versión identificable en lugar de sobrescribir la anterior, permitiendo auditoría y trazabilidad de la configuración utilizada (ADR-002, QS-05). |
+| **Wearable simulado** | Sistema externo que representa al dispositivo de monitoreo y emite eventos simulados de movimiento, inactividad, ubicación u otras condiciones definidas por el proyecto. No se utiliza hardware físico real (REST-03). |
+| **Zona segura** | Área geográfica configurada como perímetro esperado para un adulto mayor. Las reglas relacionadas se evalúan mediante `SafeZoneRuleEvaluator`. |
+
 *Documento generado bajo el template estándar PSWE-04 — Universidad Cenfotec — Maestría Profesional en Ingeniería del Software*
