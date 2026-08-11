@@ -1535,6 +1535,67 @@ El siguiente diagrama de secuencia representa un camino de error en el que ocurr
 *Figura 11 — Secuencia: Falla transitoria durante la publicación de un evento*
 > **Imagen en tamaño completo:** [`secuencia-comp3-error.png`](../diagramas/secuencia-comp3-error.png) · **Fuente editable:** [`secuencia-comp3-error.mmd`](../diagramas/secuencia-comp3-error.mmd)
 
+--- 
+
+### Componente 4 – API de Aplicación: Gestión de Configuración de Perfiles
+
+> Para efectos de este diseño detallado, el alcance se limita a la gestión de la configuración de perfiles y excluye las funcionalidades del mismo contenedor relacionadas con la autenticación y autorización de usuarios, las consultas de estado e historial, la gestión de usuarios y cualquier otra operación de la API de Aplicación no asociada a la configuración versionada de perfiles.
+
+**Responsabilidad:** Administrar de forma consistente y versionada la configuración de perfiles de monitoreo utilizada por el Motor de Reglas y el Servicio de Notificaciones, incluyendo las reglas de detección, los destinatarios, los canales y las preferencias de notificación. El componente garantiza la validación, persistencia íntegra, trazabilidad de los cambios y publicación de cada modificación como una nueva versión, sin alterar configuraciones históricas, asegurando que el sistema disponga de la información necesaria para que las alertas puedan detectarse y notificarse de forma segura, oportuna y pertinente. 
+
+**Trazabilidad:** Soporta los casos de uso definidos en la Sección 1.4 relacionados con la gestión de perfiles de monitoreo, la configuración de reglas de detección y las preferencias de notificación. Asimismo, implementa los requerimientos funcionales RF-02 y RF-05. En la Vista de estructura interna presentada en la Sección 7.2, corresponde principalmente al Contenedor 2 – API de Aplicación, responsable de exponer y ejecutar las operaciones de configuración, validación, versionado y persistencia. El Contenedor 1 – App Web actúa como interfaz de usuario desde la cual los usuarios autorizados consultan y modifican dicha configuración.
+ 
+#### 10.4.1 Diagrama de clases de diseño
+
+El siguiente diagrama presenta el diseño interno correspondiente a la Gestión de Configuración de Perfiles del componente API de Aplicación, incluyendo sus principales clases, interfaces y relaciones que permiten administrar de forma consistente y versionada los perfiles de monitoreo, las reglas de detección, los destinatarios, los canales y las preferencias de notificación, garantizando su validación, persistencia íntegra, trazabilidad de cambios y conservación de las versiones históricas.
+
+El diseño se organiza alrededor de `ProfileConfigurationService`, responsable de coordinar la recuperación de la versión activa, la creación de una nueva `ProfileConfigurationVersion`, su validación y persistencia. Cada versión agrupa de forma coherente las reglas, destinatarios, canales y preferencias correspondientes. Una nueva versión se activa únicamente cuando toda la configuración ha sido validada y persistida de forma atómica, mientras que las versiones previamente publicadas pasan a formar parte del historial de configuración y permanecen persistidas para garantizar la trazabilidad y auditoría de los cambios.
+
+![Diagrama de clases — Componente 4](../diagramas/clases-componente4.png)
+*Figura 12 — Diagrama de clases de diseño: Gestión de configuración de perfiles.*
+> **Imagen en tamaño completo:** [`clases-componente4.png`](../diagramas/clases-componente4.png) · **Fuente editable:** [`clases-componente4.mmd`](../diagramas/clases-componente4.mmd)
+
+#### 10.4.2 Contratos de interfaz
+
+| Método / Endpoint | Precondición | Postcondición | Excepciones |
+|---|---|---|---|
+| `ProfileConfigurationController.`<br>`PublishNewVersionAsync`<br>`(request, userContext):`<br>`Task<ProfileConfigurationResult>` | `request` no debe ser nulo y debe contener una solicitud válida de modificación de la configuración del perfil. `userContext` debe corresponder a un usuario autenticado y autorizado para modificar la configuración del adulto mayor indicado. | La solicitud se transforma en `ProfileConfigurationChanges` y se delega su procesamiento mediante `IProfileConfigurationService`. Se devuelve un `ProfileConfigurationResult` indicando si la nueva versión fue publicada o si la operación no pudo completarse por una condición esperada. | Puede producir una excepción cuando la solicitud no puede interpretarse, ante una falla técnica inesperada durante el procesamiento o cuando se cancela la operación. |
+| `IProfileConfigurationService.`<br>`PublishNewVersionAsync`<br>`(olderAdultId, changes, changedBy):`<br>`Task<ProfileConfigurationResult>` | `olderAdultId` y `changedBy` deben ser identificadores válidos y `changes` no debe ser nulo. El usuario debe estar autorizado para modificar la configuración indicada. | Si la configuración resulta válida, se crea y publica una nueva `ProfileConfigurationVersion` completa y consistente, que queda activa y asociada al registro de auditoría correspondiente. La versión anteriormente activa permanece persistida como parte del historial y no se modifica ni elimina. Se devuelve un `ProfileConfigurationResult` con el resultado de la operación. Las configuraciones inválidas no producen una nueva versión activa. | Puede producir una excepción ante una falla técnica al recuperar o persistir información, cuando no es posible completar la operación de forma atómica o cuando se cancela la operación. Las configuraciones inválidas se representan mediante `ProfileConfigurationResult` y no mediante excepciones. |
+| `IProfileConfigurationRepository.`<br>`GetActiveAsync(olderAdultId):`<br>`Task<ProfileConfigurationVersion?>` | `olderAdultId` debe ser un identificador válido. | Se devuelve la versión activa completa de la configuración del perfil, incluyendo el `MonitoringProfile`, sus reglas, el `NotificationProfile`, sus destinatarios, canales y preferencias. Si no existe una versión activa, se devuelve `null`. | Puede producir una excepción ante una falla técnica de consulta, una inconsistencia al reconstruir la configuración almacenada o la cancelación de la operación. |
+| `IProfileConfigurationValidator.`<br>`Validate(configuration):`<br>`ProfileConfigurationValidationResult` | `configuration` no debe ser nula. | Se valida la consistencia global de la nueva `ProfileConfigurationVersion`, incluyendo el `MonitoringProfile`, las reglas configuradas, el `NotificationProfile`, los destinatarios, los canales, las preferencias, verificando que la configuración contenga la información necesaria para ser utilizada correctamente por el Motor de Reglas y el Servicio de Notificaciones. Se devuelve un `ProfileConfigurationValidationResult` con el resultado y los errores encontrados, cuando corresponda. | Puede producir una excepción únicamente ante una falla técnica inesperada durante la validación. Una configuración inválida se representa mediante el resultado. |
+| `IProfileConfigurationRepository.`<br>`SaveAndActivateAsync`<br>`(configuration, auditEntry): Task` | `configuration` y `auditEntry` no deben ser nulos; la configuración debe haber sido validada y representar una nueva versión del perfil. | La nueva `ProfileConfigurationVersion`, el `MonitoringProfile`, el `NotificationProfile`, sus elementos asociados y el registro de auditoría se persisten de forma atómica. La nueva versión queda activa y la versión previamente activa pasa a formar parte del historial sin ser eliminada ni sobrescrita. | Puede producir una excepción ante una falla técnica de persistencia, una violación de integridad, la imposibilidad de completar la transacción de forma atómica o la cancelación de la operación. |
+                                                                                                           
+#### 10.4.3 Análisis de robustez
+
+| Objeto | Tipo | Responsabilidad |
+|---|---|---|
+| `ProfileConfigurationController`  | Boundary | Recibir desde la App Web las solicitudes de publicación de una nueva versión de configuración, transformar la solicitud en `ProfileConfigurationChanges` y delegar el procesamiento mediante `IProfileConfigurationService`. |
+| `IProfileConfigurationRepository` | Boundary | Proporcionar acceso persistente a la configuración versionada del perfil, permitiendo recuperar la versión activa y persistir de forma atómica la nueva versión de configuración y el registro de auditoría, actualizando el estado de las versiones almacenadas. |
+| `ProfileConfigurationService`     | Control  | Coordinar el proceso completo de publicación de una nueva versión, incluyendo la recuperación de la versión activa, la creación de la nueva `ProfileConfigurationVersion`, su validación, la generación del registro de auditoría y la persistencia y activación de la nueva versión. |
+| `ProfileConfigurationValidator`   | Control  | Validar la consistencia de la nueva versión de configuración, incluyendo el perfil de monitoreo, reglas, perfil de notificación, destinatarios, canales, preferencias y datos requeridos antes de su publicación. |
+| `ProfileConfigurationVersion`     | Entity   | Representar una versión completa, coherente y trazable de la configuración asociada a un adulto mayor, incluyendo la configuración utilizada por el Motor de Reglas y el Servicio de Notificaciones, permitiendo crear una nueva versión a partir de la configuración vigente y conservando el historial de versiones mediante el mecanismo de versionado.
+| `MonitoringProfile`               | Entity   | Representar la configuración de monitoreo correspondiente a una versión del perfil, agrupando las reglas de detección que serán utilizadas por el Motor de Reglas para evaluar los eventos recibidos. |
+| `MonitoringRule`                  | Entity   | Representar una regla de detección configurable asociada al perfil de monitoreo, incluyendo su tipo, severidad, parámetros y requisitos de confirmación. |
+| `NotificationProfile`             | Entity   | Representar la configuración de notificación correspondiente a una versión del perfil, agrupando los destinatarios, canales y preferencias utilizados por el Servicio de Notificaciones.                                                                                         |
+| `NotificationRecipient`           | Entity   | Representar un destinatario configurado para recibir alertas, incluyendo su relación con el adulto mayor, estado y datos de contacto disponibles.               |
+| `NotificationChannel`             | Entity   | Representar un canal habilitado para la entrega de alertas (SMS, Email, Push, etc.), incluyendo su tipo, prioridad, estado y configuración requerida para su utilización por el Servicio de Notificaciones. |
+| `NotificationPreference`          | Entity   | Representar las preferencias de notificación asociadas a una versión del perfil, incluyendo prioridades, horarios permitidos, severidad mínima y demás criterios utilizados por el Servicio de Notificaciones.                        |
+| `ConfigurationAuditEntry`         | Entity   | Representar el registro trazable de la publicación de una versión, incluyendo quién realizó el cambio, cuándo ocurrió, qué versión fue afectada y el identificador de correlación asociado. |
+
+#### 10.4.4 Diagrama de secuencia — flujo principal
+
+El siguiente diagrama de secuencia representa el flujo principal para publicar una nueva versión de configuración de perfil. El componente recupera la versión activa, construye en memoria una nueva `ProfileConfigurationVersion` a partir de los cambios solicitados, valida la consistencia de la configuración y, al ser válida, registra la información de auditoría y persiste de forma atómica la nueva versión junto con sus perfiles y elementos asociados. Como parte de la misma operación, la nueva versión queda activa y la anterior pasa a formar parte del historial, donde permanece persistida para fines de trazabilidad y auditoría.
+
+![Secuencia — Componente 4, flujo principal](../diagramas/secuencia-comp4-principal.png)
+*Figura 13 — Secuencia: Publicación exitosa de una nueva versión de configuración de perfil*
+> **Imagen en tamaño completo:** [`secuencia-comp4-principal.png`](../diagramas/secuencia-comp4-principal.png) · **Fuente editable:** [`secuencia-comp4-principal.mmd`](../diagramas/secuencia-comp4-principal.mmd)
+
+El siguiente diagrama de secuencia representa un camino de error en el que la nueva `ProfileConfigurationVersion` ha sido construida y validada correctamente, pero ocurre una falla técnica durante su persistencia y activación. Al tratarse de una operación transaccional, los cambios no se confirman y la transacción se revierte, por lo que la versión previamente activa permanece vigente y no se genera una configuración parcial. La falla se propaga como un error técnico y la nueva versión podrá volver a publicarse una vez recuperada la disponibilidad del almacenamiento.
+
+![Secuencia — Componente 4, camino de error](../diagramas/secuencia-comp4-error.png)
+*Figura 14 — Secuencia: Falla al persistir y activar una nueva versión de configuración*
+> **Imagen en tamaño completo:** [`secuencia-comp4-error.png`](../diagramas/secuencia-comp4-error.png) · **Fuente editable:** [`secuencia-comp4-error.mmd`](../diagramas/secuencia-comp4-error.mmd)
+
 ---
 
 ## 12. Principios y técnicas habilitadoras — evidencia
@@ -1552,7 +1613,6 @@ Los principios definidos previamente en la Sección 6 se utilizaron como criteri
 | Inversión / Aislamiento de dependencias externas (Dependency Inversion) | `INotificationAdapter` abstrae a los proveedores externos detrás de una interfaz común resuelta por `NotificationAdapterFactory` (ADR-004). Los repositorios (`IMonitoringProfileRepository`, `INotificationProfileRepository`, etc.) abstraen la persistencia. El Componente 3 añade dos abstracciones adicionales: `IEventSourceAuthenticator` aísla el mecanismo concreto de autenticación del emisor —"independientemente del mecanismo concreto utilizado", según su propio contrato (§10.3.2)— y `IEventPublisher` aísla la tecnología de mensajería utilizada para publicar al bus, de modo que el núcleo de ingesta no depende ni del wearable concreto ni del producto de mensajería elegido. | §5 REST-01, REST-03; §9 ADR-004; §10.1.2, §10.2.2 y §10.3.2 (contratos de interfaz) | Tensión con KISS: las interfaces introducen indirección y aumentan el número de elementos del diseño. Se mantienen en puntos donde existe variabilidad real —proveedor, mecanismo de autenticación, tecnología de mensajería— y no como abstracciones preventivas sin un cambio identificado. |
 
 ---
-
 
 # BLOQUE 6 — CALIDAD Y TENDENCIAS
 *Hito: Entrega final (S14)*
@@ -1775,6 +1835,5 @@ Siguiendo el criterio de los ADR, conviene declarar de forma explícita qué evi
 Conviene cerrar señalando qué resistiría a todas las evoluciones anteriores. El estilo orientado a eventos con intermediario durable sobrevive a cada uno de los escenarios planteados: el procesamiento en el borde cambia dónde se origina el evento pero no cómo se transporta; los modelos de aprendizaje cambian cómo se evalúa pero no dónde; la interoperabilidad clínica agrega consumidores sin modificar productores. Esa estabilidad es, en sí misma, evidencia a favor de la decisión registrada en ADR-001: un estilo cuya vigencia no depende de qué tecnología se imponga en la siguiente década.
 
 La frontera de puertos y adaptadores adoptada en §8.1 cumple una función equivalente en la dimensión tecnológica: absorbe el cambio de proveedores, de canales y eventualmente de plataforma de mensajería sin propagarlo hacia la lógica de detección, que es donde reside el valor del sistema.
-
-
+ 
 *Documento generado bajo el template estándar PSWE-04 — Universidad Cenfotec — Maestría Profesional en Ingeniería del Software*

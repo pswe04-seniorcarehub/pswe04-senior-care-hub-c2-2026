@@ -1,0 +1,57 @@
+sequenceDiagram
+    autonumber
+
+    participant Web as App Web
+    participant Controller as ProfileConfigurationController
+    participant Service as ProfileConfigurationService
+    participant Repo as IProfileConfigurationRepository
+    participant Version as ProfileConfigurationVersion
+    participant Validator as IProfileConfigurationValidator
+
+    Web->>Controller: Solicitar publicación de nueva versión
+    activate Controller
+
+    Controller->>Controller: MapToChanges(request)
+
+    Controller->>Service: PublishNewVersionAsync(olderAdultId, changes, changedBy)
+    activate Service
+
+    Service->>Repo: GetActiveAsync(olderAdultId)
+    activate Repo
+    Repo-->>Service: ProfileConfigurationVersion activa
+    deactivate Repo
+
+    Service->>Version: CreateNextVersion(changes, changedBy)
+    activate Version
+    Version-->>Service: Nueva ProfileConfigurationVersion en memoria
+    deactivate Version
+
+    Service->>Validator: Validate(newVersion)
+    activate Validator
+    Validator-->>Service: ProfileConfigurationValidationResult<br/>IsValid = true
+    deactivate Validator
+
+    Service->>Service: Crear ConfigurationAuditEntry
+
+    Service->>Repo: SaveAndActivateAsync(newVersion, auditEntry)
+    activate Repo
+
+    Repo->>Repo: BEGIN TRANSACTION
+    Repo->>Repo: Persistir nueva configuración
+    Repo->>Repo: Marcar versión anterior como histórica
+    Repo->>Repo: Marcar nueva versión como activa
+
+    Note over Repo: Ocurre una falla técnica antes de completar<br/>la operación transaccional.
+
+    Repo->>Repo: ROLLBACK
+
+    Repo--xService: Excepción de persistencia
+    deactivate Repo
+
+    Note over Service,Repo: Ningún cambio queda confirmado.<br/>La versión anterior continúa activa.
+
+    Service--xController: Error técnico
+    deactivate Service
+
+    Controller-->>Web: No fue posible publicar la nueva versión
+    deactivate Controller

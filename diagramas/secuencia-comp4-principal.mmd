@@ -1,0 +1,59 @@
+sequenceDiagram
+    autonumber
+
+    participant Web as App Web
+    participant Controller as ProfileConfigurationController
+    participant Service as ProfileConfigurationService
+    participant Repo as IProfileConfigurationRepository
+    participant Version as ProfileConfigurationVersion
+    participant Validator as IProfileConfigurationValidator
+
+    Web->>Controller: Solicitar publicación de nueva versión
+    activate Controller
+
+    Controller->>Controller: MapToChanges(request)
+
+    Controller->>Service: PublishNewVersionAsync(olderAdultId, changes, changedBy)
+    activate Service
+
+    Service->>Repo: GetActiveAsync(olderAdultId)
+    activate Repo
+    Repo-->>Service: ProfileConfigurationVersion activa
+    deactivate Repo
+
+    Service->>Version: CreateNextVersion(changes, changedBy)
+    activate Version
+    Version-->>Service: Nueva ProfileConfigurationVersion en memoria
+    deactivate Version
+
+    Note over Service,Version: La versión anterior no se modifica.<br/>Se construye una nueva versión completa en memoria.
+
+    Service->>Validator: Validate(newVersion)
+    activate Validator
+    Validator-->>Service: ProfileConfigurationValidationResult<br/>IsValid = true
+    deactivate Validator
+
+    Service->>Service: Crear ConfigurationAuditEntry
+
+    Note over Service,Repo: La nueva versión se persiste y activa<br/>en una única operación transaccional.
+
+    Service->>Repo: SaveAndActivateAsync(newVersion, auditEntry)
+    activate Repo
+
+    Repo->>Repo: BEGIN TRANSACTION
+    Repo->>Repo: Persistir ProfileConfigurationVersion
+    Repo->>Repo: Persistir MonitoringProfile y reglas
+    Repo->>Repo: Persistir NotificationProfile,<br/>destinatarios, canales y preferencias
+    Repo->>Repo: Marcar versión anterior como histórica/inactiva
+    Repo->>Repo: Marcar nueva versión como activa
+    Repo->>Repo: Persistir ConfigurationAuditEntry
+    Repo->>Repo: COMMIT
+
+    Repo-->>Service: Nueva versión almacenada y activa
+    deactivate Repo
+
+    Service-->>Controller: ProfileConfigurationResult<br/>Status = Published
+    deactivate Service
+
+    Controller-->>Web: Nueva versión publicada
+    deactivate Controller
