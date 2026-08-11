@@ -4,7 +4,7 @@
 |---|---|
 | **Estado** | Aceptada |
 | **Fecha** | 2026-07-25 |
- **Última revisión** | 2026-08-10 |
+| **Última revisión** | 2026-08-10 |
 | **Autores** | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 | **Drivers atendidos** | RF-01, RF-03, QA-01, QA-02, QA-03, REST-01 |
 | **Escenarios relacionados** | QS-01, QS-02, QS-03 |
