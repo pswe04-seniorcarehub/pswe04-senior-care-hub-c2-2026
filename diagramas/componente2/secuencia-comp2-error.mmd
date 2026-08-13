@@ -1,0 +1,100 @@
+sequenceDiagram
+    autonumber
+
+    participant Bus as Bus de Mensajería
+    participant Consumer as AlertMessageConsumer
+    participant Service as NotificationProcessingService
+    participant ProfileRepo as INotificationProfileRepository
+    participant TrackingRepo as INotificationTrackingRepository
+    participant ChannelService as ChannelSelectionService
+    participant Resolver as DeliveryPolicyResolver
+    participant Strategy as PriorityFallbackDeliveryStrategy
+    participant Factory as NotificationAdapterFactory
+    participant Adapter as INotificationAdapter
+    participant Provider as Proveedor externo
+
+    Bus->>Consumer: Entregar mensaje de alerta confirmada
+    activate Consumer
+
+    Consumer->>Consumer: MapToAlert(message)
+    Consumer->>Service: ProcessAsync(alert)
+    activate Service
+
+    Service->>ProfileRepo: GetByOlderAdultIdAsync(alert.olderAdultId, alert.profileVersion)
+    activate ProfileRepo
+    ProfileRepo-->>Service: NotificationProfile
+    deactivate ProfileRepo
+
+    Service->>TrackingRepo: GetByAlertAndRecipientAsync(alert.alertId, recipient.recipientId)
+    activate TrackingRepo
+    TrackingRepo-->>Service: null
+    deactivate TrackingRepo
+
+    Service->>Service: CreateNotification(alert, recipient)
+    Service->>Service: notification.MarkInProgress()
+
+    Service->>TrackingRepo: SaveNotificationAsync(notification)
+    activate TrackingRepo
+    TrackingRepo-->>Service: Notification almacenada
+    deactivate TrackingRepo
+
+    Service->>ChannelService: SelectApplicableChannels(alert, profile, recipient)
+    activate ChannelService
+    ChannelService-->>Service: NotificationChannelCollection
+    deactivate ChannelService
+
+    Service->>Resolver: ResolveStrategy(alert, profile)
+    activate Resolver
+    Resolver-->>Service: PriorityFallbackDeliveryStrategy
+    deactivate Resolver
+
+    Service->>Strategy: ExecuteAsync(alert, recipient, channels)
+    activate Strategy
+
+    Strategy->>Factory: Create(channelType, providerId)
+    activate Factory
+
+    Factory->>Adapter: Supports(channelType, providerId)
+    activate Adapter
+    Adapter-->>Factory: true
+    deactivate Adapter
+
+    Factory-->>Strategy: INotificationAdapter compatible
+    deactivate Factory
+
+    Strategy->>Adapter: SendAsync(alert, recipient, channel)
+    activate Adapter
+
+    Adapter->>Provider: Solicitar envío de la notificación
+    activate Provider
+    Provider-->>Adapter: Respuesta de falla transitoria
+    deactivate Provider
+
+    Adapter-->>Strategy: AdapterSendResult<br/>DeliveryStatus = Failed<br/>FailureType = Transient
+    deactivate Adapter
+
+    Note over Strategy: No existen canales alternativos aplicables.
+
+    Strategy-->>Service: ChannelDeliveryResultCollection<br/>con falla transitoria
+    deactivate Strategy
+
+    Service->>Service: CreateAttempt(notification, result)
+
+    Service->>TrackingRepo: SaveAttemptAsync(attempt)
+    activate TrackingRepo
+    TrackingRepo-->>Service: Intento fallido registrado
+    deactivate TrackingRepo
+
+    Service->>Service: notification.MarkPendingRetry(reason)
+
+    Service->>TrackingRepo: SaveNotificationAsync(notification)
+    activate TrackingRepo
+    TrackingRepo-->>Service: Estado PendingRetry almacenado
+    deactivate TrackingRepo
+
+    Service-->>Consumer: NotificationProcessingResult<br/>Status = PendingRetry<br/>ShouldAcknowledgeMessage = false
+    deactivate Service
+
+    Note over Consumer,Bus: El mensaje no se confirma y permanece disponible<br/>para reentrega según la política de mensajería.
+
+    deactivate Consumer

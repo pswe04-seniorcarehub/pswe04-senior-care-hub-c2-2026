@@ -1,0 +1,68 @@
+sequenceDiagram
+    autonumber
+
+    actor Bus as Bus de Mensajería
+    participant Consumer as EventMessageConsumer
+    participant Service as RuleProcessingService
+    participant Validator as IEventValidator
+    participant ProfileRepo as IMonitoringProfileRepository
+    participant RuleRepo as IMonitoringRuleRepository
+    participant Factory as IRuleEvaluatorFactory
+    participant Evaluator as IRuleEvaluator
+    participant Confirmation as IConfirmationService
+    participant StateRepo as IConfirmationStateRepository
+    participant Deduplication as IDeduplicationService
+    participant AlertRepo as IAlertRepository
+    participant Publisher as IAlertPublisher
+
+    Bus->>Consumer: Entregar mensaje de evento
+    Consumer->>Consumer: MapToEvent(message)
+    Consumer->>Service: ProcessAsync(event)
+
+    Service->>Validator: ValidateAsync(event)
+    Validator-->>Service: EventValidationResult válido
+
+    Service->>ProfileRepo: GetApplicableAsync(event.olderAdultId, event.receivedAt)
+    ProfileRepo-->>Service: MonitoringProfile
+
+    Service->>RuleRepo: GetActiveRulesAsync(profile.profileId, profile.version, event.eventType)
+    RuleRepo-->>Service: MonitoringRuleCollection
+
+    loop Por cada regla activa y aplicable
+        Service->>Factory: Create(rule.ruleType)
+        Factory-->>Service: IRuleEvaluator
+
+        Service->>Evaluator: Evaluate(event, rule, profile)
+        Evaluator-->>Service: RuleEvaluationResult
+    end
+
+    Service->>Service: Seleccionar regla y evaluación coincidentes
+
+    Service->>Confirmation: ConfirmAsync(event, rule, evaluation)
+
+    Confirmation->>StateRepo: GetAsync(event.olderAdultId, rule.ruleId, profile.version)
+    StateRepo-->>Confirmation: ConfirmationState pendiente
+
+    Confirmation->>Confirmation: Agregar event.eventId a MatchingEventIds
+    Confirmation->>Confirmation: Actualizar ventana, contador y estado
+
+    Confirmation->>StateRepo: SaveAsync(state confirmado)
+    StateRepo-->>Confirmation: Estado almacenado
+
+    Confirmation-->>Service: ConfirmationResult confirmado con SourceEventIds
+
+    Service->>Deduplication: IsDuplicateAsync(event.eventId, event.olderAdultId, rule.alertType)
+    Deduplication-->>Service: false
+
+    Service->>Service: CreateAlert(event, rule, confirmation)
+
+    Service->>AlertRepo: SaveAsync(alert)
+    AlertRepo-->>Service: Alerta almacenada
+
+    Service->>Publisher: PublishAsync(alert)
+    Publisher->>Bus: Publicar alerta confirmada
+    Bus-->>Publisher: Publicación aceptada
+    Publisher-->>Service: Publicación completada
+
+    Service-->>Consumer: ProcessingResult(AlertGenerated, alertId)
+    Consumer-->>Bus: Confirmar procesamiento del mensaje

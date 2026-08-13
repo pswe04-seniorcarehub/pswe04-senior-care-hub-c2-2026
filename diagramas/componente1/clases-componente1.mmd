@@ -1,0 +1,358 @@
+classDiagram
+    direction TB
+
+    %% =====================================================
+    %% PUNTO DE ENTRADA Y ORQUESTACIÓN
+    %% =====================================================
+
+    class EventMessageConsumer {
+        <<Boundary>>
+        -IRuleProcessingService ruleProcessingService
+        +HandleAsync(message) Task
+        -MapToEvent(message) MonitoringEvent
+    }
+
+    %% =========================================================
+    %% SERVICIO PRINCIPAL
+    %% =========================================================
+
+    class IRuleProcessingService {
+        <<interface>>
+        +ProcessAsync(event) Task~ProcessingResult~
+    }
+
+    class RuleProcessingService {
+        <<Control>>
+        -IEventValidator eventValidator
+        -IMonitoringProfileRepository profileRepository
+        -IMonitoringRuleRepository ruleRepository
+        -IRuleEvaluatorFactory evaluatorFactory
+        -IConfirmationService confirmationService
+        -IDeduplicationService deduplicationService
+        -IAlertRepository alertRepository
+        -IAlertPublisher alertPublisher
+        +ProcessAsync(event) Task~ProcessingResult~
+        -CreateAlert(event, rule, confirmation) Alert
+    }
+
+    %% =====================================================
+    %% VALIDACIÓN
+    %% =====================================================
+
+    class IEventValidator {
+        <<interface>>
+        +ValidateAsync(event) Task~EventValidationResult~
+    }
+
+    class EventValidator {
+        <<Control>>
+        +ValidateAsync(event) Task~EventValidationResult~
+        -ValidateRequiredData(event) ValidationErrorCollection
+    }
+
+    %% =====================================================
+    %% EVALUACIÓN DE REGLAS
+    %% =====================================================
+
+    class IRuleEvaluatorFactory {
+        <<interface>>
+        <<Control>>
+        +Create(ruleType) IRuleEvaluator
+    }
+
+    class RuleEvaluatorFactory {
+        <<Control>>
+        -IRuleEvaluatorCollection evaluators
+        +Create(ruleType) IRuleEvaluator
+    }
+
+    class IRuleEvaluator {
+        <<interface>>
+        <<Control>>
+        +Supports(ruleType) bool
+        +Evaluate(event, rule, profile) RuleEvaluationResult
+    }
+
+    class FallRuleEvaluator {
+        <<Control>>
+        +Supports(ruleType) bool
+        +Evaluate(event, rule, profile) RuleEvaluationResult
+    }
+
+    class InactivityRuleEvaluator {
+        <<Control>>
+        +Supports(ruleType) bool
+        +Evaluate(event, rule, profile) RuleEvaluationResult
+    }
+
+    class SafeZoneRuleEvaluator {
+        <<Control>>
+        +Supports(ruleType) bool
+        +Evaluate(event, rule, profile) RuleEvaluationResult
+    }
+     
+    %% =====================================================
+    %% CONFIRMACIÓN Y DEDUPLICACIÓN
+    %% =====================================================
+
+    class IConfirmationService {
+        <<interface>>
+        <<Control>>
+        +ConfirmAsync(event, rule, evaluation) Task~ConfirmationResult~
+    }
+
+    class ConfirmationService {
+        <<Control>>
+        +ConfirmAsync(event, rule, evaluation) Task~ConfirmationResult~
+    }
+
+    class IDeduplicationService {
+        <<interface>>
+        <<Control>>
+        +IsDuplicateAsync(eventId, olderAdultId, alertType) Task~bool~
+    }
+
+    class DeduplicationService {
+        <<Control>>
+        -IAlertRepository alertRepository
+        +IsDuplicateAsync(eventId, olderAdultId, alertType) Task~bool~
+    }
+ 
+    %% =====================================================
+    %% PUBLICACIÓN DE ALERTAS
+    %% =====================================================
+
+    class IAlertPublisher {
+        <<interface>>
+        <<Boundary>>
+        +PublishAsync(alert) Task
+    }
+
+    class AzureServiceBusAlertPublisher {
+        <<Boundary>>
+        +PublishAsync(alert) Task
+    }
+
+    %% =====================================================
+    %% REPOSITORIOS
+    %% =====================================================
+
+    class IMonitoringProfileRepository {
+        <<interface>>
+        <<Boundary>>
+        +GetApplicableAsync(olderAdultId, receivedAt) Task~MonitoringProfile?~
+    }
+
+    class IMonitoringRuleRepository {
+        <<interface>>
+        <<Boundary>>
+        +GetActiveRulesAsync(profileId, profileVersion, eventType) Task~MonitoringRuleCollection~
+    }
+
+    class IAlertRepository {
+        <<interface>>
+        <<Boundary>>
+        +ExistsBySourceEventIdAsync(eventId) Task~bool~
+        +ExistsActiveEquivalentAsync(olderAdultId, alertType) Task~bool~
+        +SaveAsync(alert) Task
+    }
+
+    class IConfirmationStateRepository {
+        <<interface>>
+        <<Boundary>>
+        +GetAsync(olderAdultId, ruleId, profileVersion) Task~ConfirmationState?~
+        +SaveAsync(state) Task
+    }
+
+    class PostgreSqlMonitoringProfileRepository {
+        <<Boundary>>
+        +GetByOlderAdultIdAsync(olderAdultId, receivedAt) Task~MonitoringProfile?~
+    }
+
+    class PostgreSqlMonitoringRuleRepository {
+        <<Boundary>>
+        +GetActiveRulesAsync(profileId, profileVersion, eventType) Task~MonitoringRuleCollection~
+    }
+
+    class PostgreSqlAlertRepository {
+        <<Boundary>>
+        +ExistsBySourceEventIdAsync(eventId) Task~bool~
+        +ExistsActiveEquivalentAsync(olderAdultId, alertType) Task~bool~
+        +SaveAsync(alert) Task
+    }
+
+    class PostgreSqlConfirmationStateRepository {
+        <<Boundary>>
+        +GetAsync(olderAdultId, ruleId, profileVersion) Task~ConfirmationState?~
+        +SaveAsync(state) Task
+    }
+ 
+    %% =====================================================
+    %% ENTIDADES Y OBJETOS DE VALOR
+    %% =====================================================
+
+    class MonitoringEvent {
+        <<Entity>>
+        +Guid EventId
+        +Guid OlderAdultId
+        +EventType EventType
+        +DateTimeOffset OccurredAt
+        +DateTimeOffset ReceivedAt
+        +Dictionary Payload
+    }
+
+    class MonitoringProfile {
+        <<Entity>>
+        +Guid ProfileId
+        +Guid OlderAdultId
+        +int Version
+        +bool IsActive
+        +RiskLevel RiskLevel
+    }
+
+    class MonitoringRule {
+        <<Entity>>
+        +Guid RuleId
+        +RuleType RuleType
+        +AlertType AlertType
+        +AlertSeverity Severity
+        +bool RequiresConfirmation
+        +Dictionary Parameters
+    }
+
+    class Alert {
+        <<Entity>>
+        +Guid AlertId
+        +GuidCollection SourceEventIds
+        +Guid OlderAdultId
+        +Guid RuleId
+        +int ProfileVersion
+        +AlertType AlertType
+        +AlertSeverity Severity
+        +DateTimeOffset CreatedAt
+    }
+
+    class ConfirmationState {
+        <<Entity>>
+        +Guid ConfirmationStateId
+        +Guid OlderAdultId
+        +Guid RuleId
+        +int ProfileVersion
+        +DateTimeOffset WindowStartedAt
+        +DateTimeOffset WindowExpiresAt
+        +DateTimeOffset LastEventAt
+        +int MatchingEventCount
+        +GuidCollection MatchingEventIds
+        +ConfirmationStateStatus Status
+    }
+
+    class EventValidationResult {
+        <<Value Object>>
+        +bool IsValid
+        +ValidationErrorCollection Errors
+    }
+
+    class RuleEvaluationResult {
+        <<Value Object>>
+        +bool IsMatch
+        +string Reason
+    }
+
+    class ConfirmationResult {
+        <<Value Object>>
+        +bool IsConfirmed
+        +string Reason
+        +GuidCollection SourceEventIds
+    }
+
+    class ProcessingResult {
+        <<Value Object>>
+        +ProcessingStatus Status
+        +Guid? AlertId
+        +string Message
+    }
+
+    %% =====================================================
+    %% ENUMERACIONES
+    %% =====================================================
+
+    class ProcessingStatus {
+        <<enumeration>>
+        InvalidEvent
+        ProfileNotFound
+        NoApplicableRules
+        NoRiskDetected
+        ConfirmationPending
+        Duplicate
+        AlertGenerated
+    }
+
+    class ConfirmationStateStatus {
+        <<enumeration>>
+        Pending
+        Confirmed
+        Expired
+    }
+
+    %% =========================================================
+    %% IMPLEMENTACIONES
+    %% =========================================================
+
+    EventMessageConsumer --> IRuleProcessingService : delega procesamiento
+    RuleProcessingService ..|> IRuleProcessingService : implementa
+
+    RuleProcessingService --> IEventValidator : valida evento
+    EventValidator ..|> IEventValidator : implementa
+
+    RuleProcessingService --> IRuleEvaluatorFactory : solicita evaluador
+
+    RuleEvaluatorFactory ..|> IRuleEvaluatorFactory : implementa
+    RuleEvaluatorFactory o-- IRuleEvaluator : selecciona
+
+    FallRuleEvaluator ..|> IRuleEvaluator
+    InactivityRuleEvaluator ..|> IRuleEvaluator
+    SafeZoneRuleEvaluator ..|> IRuleEvaluator
+
+    RuleProcessingService --> IConfirmationService : confirma riesgo
+    RuleProcessingService --> IDeduplicationService : evita duplicados
+
+    ConfirmationService ..|> IConfirmationService : implementa
+    DeduplicationService ..|> IDeduplicationService : implementa
+
+    RuleProcessingService --> IAlertPublisher : publica alerta
+    AzureServiceBusAlertPublisher ..|> IAlertPublisher : implementa
+
+    RuleProcessingService --> IMonitoringProfileRepository : consulta perfil
+    RuleProcessingService --> IMonitoringRuleRepository : consulta reglas
+    RuleProcessingService --> IAlertRepository : persiste alerta
+
+    ConfirmationService --> IConfirmationStateRepository : consulta y actualiza estado
+    DeduplicationService --> IAlertRepository : consulta alertas existentes
+
+    PostgreSqlMonitoringProfileRepository ..|> IMonitoringProfileRepository
+    PostgreSqlMonitoringRuleRepository ..|> IMonitoringRuleRepository
+    PostgreSqlAlertRepository ..|> IAlertRepository
+    PostgreSqlConfirmationStateRepository ..|> IConfirmationStateRepository
+
+    %% =====================================================
+    %% DEPENDENCIAS DE INFORMACIÓN RELEVANTES
+    %% =====================================================
+
+    EventMessageConsumer ..> MonitoringEvent : transforma mensaje
+
+    IRuleProcessingService ..> MonitoringEvent
+    IRuleProcessingService ..> ProcessingResult
+
+    IEventValidator ..> EventValidationResult
+    IMonitoringProfileRepository ..> MonitoringProfile
+    IMonitoringRuleRepository ..> MonitoringRule
+
+    IRuleEvaluator ..> RuleEvaluationResult
+    IConfirmationService ..> ConfirmationResult
+    IConfirmationStateRepository ..> ConfirmationState
+
+    IAlertRepository ..> Alert
+    IAlertPublisher ..> Alert
+
+    
+    

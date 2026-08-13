@@ -1,0 +1,587 @@
+classDiagram
+direction TB
+
+%% =========================================================
+%% PUNTO DE ENTRADA
+%% =========================================================
+
+class AlertMessageConsumer {
+    <<Boundary>>
+    -INotificationProcessingService processingService
+    +HandleAsync(message) Task
+    -MapToAlert(message) Alert
+}
+
+%% =========================================================
+%% SERVICIO PRINCIPAL
+%% =========================================================
+
+class INotificationProcessingService {
+    <<interface>>
+    +ProcessAsync(alert) Task~NotificationProcessingResult~
+}
+
+class NotificationProcessingService {
+    <<Control>>
+
+    -INotificationProfileRepository profileRepository
+    -INotificationTrackingRepository trackingRepository
+
+    -ChannelSelectionService channelSelectionService
+    -DeliveryPolicyResolver deliveryPolicyResolver
+
+    +ProcessAsync(alert) Task~NotificationProcessingResult~
+
+    -ProcessRecipientAsync(alert, profile, recipient) Task~NotificationStatus~
+
+    -CreateNotification(alert, recipient) Notification
+    -CreateAttempt(notification, result) NotificationAttempt
+}
+
+%% =========================================================
+%% POLÍTICA DE ENTREGA
+%% =========================================================
+
+class DeliveryPolicyResolver {
+    <<Control>>
+
+    +ResolveStrategy(alert, profile) IChannelDeliveryStrategy
+}
+
+%% =========================================================
+%% STRATEGY
+%% =========================================================
+
+class IChannelDeliveryStrategy {
+    <<interface>>
+    <<Strategy>>
+
+    +ExecuteAsync(
+        alert,
+        recipient,
+        channels
+    ) Task~ChannelDeliveryResultCollection~
+}
+
+class PriorityFallbackDeliveryStrategy {
+    <<Control>>
+
+    -NotificationAdapterFactory adapterFactory
+
+    +ExecuteAsync(
+        alert,
+        recipient,
+        channels
+    ) Task~ChannelDeliveryResultCollection~
+}
+
+class ParallelDeliveryStrategy {
+    <<Control>>
+
+    -NotificationAdapterFactory adapterFactory
+
+    +ExecuteAsync(
+        alert,
+        recipient,
+        channels
+    ) Task~ChannelDeliveryResultCollection~
+}
+
+%% =========================================================
+%% REPOSITORIO DE CONFIGURACIÓN
+%% =========================================================
+
+class INotificationProfileRepository {
+    <<interface>>
+    <<Repository>>
+
+    +GetByOlderAdultIdAsync(
+        olderAdultId,
+        profileVersion
+    ) Task~NotificationProfile?~
+}
+
+class PostgreSqlNotificationProfileRepository {
+    <<Boundary>>
+
+    +GetByOlderAdultIdAsync(
+        olderAdultId,
+        profileVersion
+    ) Task~NotificationProfile?~
+}
+
+%% =========================================================
+%% REPOSITORIO DE SEGUIMIENTO
+%% =========================================================
+
+class INotificationTrackingRepository {
+    <<interface>>
+    <<Repository>>
+
+    +GetByAlertAndRecipientAsync(
+        alertId,
+        recipientId
+    ) Task~Notification?~
+
+    +SaveNotificationAsync(notification) Task
+
+    +SaveAttemptAsync(attempt) Task
+}
+
+class PostgreSqlNotificationTrackingRepository {
+    <<Boundary>>
+
+    +GetByAlertAndRecipientAsync(
+        alertId,
+        recipientId
+    ) Task~Notification?~
+
+    +SaveNotificationAsync(notification) Task
+
+    +SaveAttemptAsync(attempt) Task
+}
+
+%% =========================================================
+%% SELECCIÓN DE CANALES
+%% =========================================================
+
+class ChannelSelectionService {
+    <<Control>>
+
+    +SelectApplicableChannels(
+        alert,
+        profile,
+        recipient
+    ) NotificationChannelCollection
+}
+
+%% =========================================================
+%% FACTORY DE ADAPTADORES
+%% =========================================================
+
+class NotificationAdapterFactory {
+    <<Control>>
+
+    -INotificationAdapterCollection adapters
+
+    +Create(
+        channelType,
+        providerId
+    ) INotificationAdapter
+}
+
+%% =========================================================
+%% ADAPTADORES
+%% =========================================================
+
+class INotificationAdapter {
+    <<interface>>
+    <<Adapter>>
+
+    +Supports(
+        channelType,
+        providerId
+    ) bool
+
+    +SendAsync(
+        alert,
+        recipient,
+        channel
+    ) Task~AdapterSendResult~
+}
+
+class SmsNotificationAdapter {
+    <<Boundary>>
+
+    +Supports(channelType, providerId) bool
+
+    +SendAsync(
+        alert,
+        recipient,
+        channel
+    ) Task~AdapterSendResult~
+}
+
+class EmailNotificationAdapter {
+    <<Boundary>>
+
+    +Supports(channelType, providerId) bool
+
+    +SendAsync(
+        alert,
+        recipient,
+        channel
+    ) Task~AdapterSendResult~
+}
+
+class InstantMessagingNotificationAdapter {
+    <<Boundary>>
+
+    +Supports(channelType, providerId) bool
+
+    +SendAsync(
+        alert,
+        recipient,
+        channel
+    ) Task~AdapterSendResult~
+}
+%% =========================================================
+%% ENTIDADES Y OBJETOS DEL DOMINIO
+%% =========================================================
+
+class Alert {
+    <<Entity>>
+
+    +Guid AlertId
+    +Guid OlderAdultId
+    +Guid RuleId
+
+    +int ProfileVersion
+
+    +AlertType AlertType
+    +AlertSeverity Severity
+
+    +GuidCollection SourceEventIds
+
+    +DateTimeOffset CreatedAt
+}
+
+class NotificationProfile {
+    <<Entity>>
+
+    +Guid ProfileId
+    +Guid OlderAdultId
+
+    +int ProfileVersion
+
+    +DeliveryPolicy DeliveryPolicy
+}
+
+class NotificationRecipient {
+    <<Entity>>
+
+    +Guid RecipientId
+
+    +string Name
+
+    +RecipientRelationship Relationship
+
+    +bool IsEnabled
+
+    +string? PhoneNumber
+    +string? EmailAddress
+    +string? MessagingAddress
+}
+
+class NotificationChannel {
+    <<Entity>>
+
+    +Guid ChannelId
+
+    +NotificationChannelType ChannelType
+
+    +string ProviderId
+
+    +int Priority
+
+    +bool IsEnabled
+
+    +AlertTypeCollection ApplicableAlertTypes
+
+    +AlertSeverity MinimumSeverity
+}
+
+class Notification {
+    <<Entity>>
+
+    +Guid NotificationId
+
+    +Guid AlertId
+
+    +Guid RecipientId
+
+    +NotificationStatus Status
+
+    +DateTimeOffset CreatedAt
+    +DateTimeOffset UpdatedAt
+    +DateTimeOffset? CompletedAt
+
+    +string? ResultReason
+
+    +MarkInProgress()
+
+    +MarkDelivered()
+
+    +MarkPendingRetry(reason)
+
+    +MarkConfigurationError(reason)
+
+    +MarkFailed(reason)
+}
+
+class NotificationAttempt {
+    <<Entity>>
+
+    +Guid AttemptId
+
+    +Guid NotificationId
+
+    +Guid ChannelId
+
+    +NotificationChannelType ChannelType
+
+    +string ProviderId
+
+    +NotificationDeliveryStatus DeliveryStatus
+
+    +FailureClassification? FailureType
+
+    +string? FailureReason
+
+    +string? ExternalMessageId
+
+    +DateTimeOffset AttemptedAt
+
+    +string CorrelationId
+}
+
+%% =========================================================
+%% VALUE OBJECTS
+%% =========================================================
+
+class NotificationChannelCollection {
+    <<Value Object>>
+
+    +NotificationChannel[] Channels
+}
+
+class AdapterSendResult {
+    <<Value Object>>
+
+    +NotificationDeliveryStatus DeliveryStatus
+
+    +string? ExternalMessageId
+
+    +FailureClassification? FailureType
+
+    +string? FailureReason
+}
+
+class ChannelDeliveryResult {
+    <<Value Object>>
+
+    +NotificationChannel Channel
+
+    +AdapterSendResult SendResult
+}
+
+class ChannelDeliveryResultCollection {
+    <<Value Object>>
+
+    +ChannelDeliveryResult[] Results
+}
+
+class NotificationProcessingResult {
+    <<Value Object>>
+
+    +NotificationProcessingStatus Status
+
+    +bool ShouldAcknowledgeMessage
+
+    +string? Reason
+}
+%% =========================================================
+%% ENUMERACIONES
+%% =========================================================
+
+class DeliveryPolicy {
+    <<enumeration>>
+
+    PriorityFallback
+    Parallel
+}
+
+class NotificationStatus {
+    <<enumeration>>
+
+    Pending
+    InProgress
+    Delivered
+    PendingRetry
+    ConfigurationError
+    Failed
+}
+
+class NotificationProcessingStatus {
+    <<enumeration>>
+
+    Delivered
+    PartiallyDelivered
+    AlreadyProcessed
+    ConfigurationError
+    PendingRetry
+    Failed
+}
+
+class NotificationChannelType {
+    <<enumeration>>
+
+    Sms
+    Email
+    InstantMessaging
+}
+
+class FailureClassification {
+    <<enumeration>>
+
+    Transient
+    Permanent
+    Configuration
+    Unexpected
+}
+
+class NotificationDeliveryStatus {
+    <<enumeration>>
+
+    Started
+    Accepted
+    Sent
+    Delivered
+    Rejected
+    Failed
+}
+
+class RecipientRelationship {
+    <<enumeration>>
+
+    FamilyMember
+    ProfessionalCaregiver
+    Other
+}
+%% =========================================================
+%% IMPLEMENTACIONES
+%% =========================================================
+
+INotificationProcessingService <|.. NotificationProcessingService
+
+INotificationProfileRepository <|.. PostgreSqlNotificationProfileRepository
+INotificationTrackingRepository <|.. PostgreSqlNotificationTrackingRepository
+
+IChannelDeliveryStrategy <|.. PriorityFallbackDeliveryStrategy
+IChannelDeliveryStrategy <|.. ParallelDeliveryStrategy
+
+INotificationAdapter <|.. SmsNotificationAdapter
+INotificationAdapter <|.. EmailNotificationAdapter
+INotificationAdapter <|.. InstantMessagingNotificationAdapter
+
+
+%% =========================================================
+%% COLABORACIONES
+%% =========================================================
+
+AlertMessageConsumer --> INotificationProcessingService : delega procesamiento
+
+NotificationProcessingService --> INotificationProfileRepository : obtiene configuración
+
+NotificationProcessingService --> INotificationTrackingRepository : consulta estado y persiste
+
+NotificationProcessingService --> ChannelSelectionService : obtiene canales aplicables
+
+NotificationProcessingService --> DeliveryPolicyResolver : resuelve estrategia
+
+NotificationProcessingService --> Notification : crea y actualiza
+
+NotificationProcessingService --> NotificationAttempt : registra intentos
+
+NotificationProcessingService --> NotificationProcessingResult : devuelve resultado
+
+
+DeliveryPolicyResolver --> Alert : considera severidad
+
+DeliveryPolicyResolver --> NotificationProfile : considera configuración
+
+DeliveryPolicyResolver --> IChannelDeliveryStrategy : selecciona estrategia
+
+
+PriorityFallbackDeliveryStrategy --> NotificationAdapterFactory : obtiene adaptadores
+
+ParallelDeliveryStrategy --> NotificationAdapterFactory : obtiene adaptadores
+
+
+PriorityFallbackDeliveryStrategy --> ChannelDeliveryResultCollection : devuelve resultados
+
+ParallelDeliveryStrategy --> ChannelDeliveryResultCollection : devuelve resultados
+
+
+NotificationAdapterFactory --> INotificationAdapter : selecciona adaptador
+
+
+ChannelSelectionService --> NotificationProfile : consulta configuración
+
+ChannelSelectionService --> Alert : considera tipo y severidad
+
+ChannelSelectionService --> NotificationRecipient : considera destinatario
+
+ChannelSelectionService --> NotificationChannelCollection : devuelve canales
+
+
+INotificationAdapter --> Alert : obtiene contenido
+
+INotificationAdapter --> NotificationRecipient : envía al destinatario
+
+INotificationAdapter --> NotificationChannel : utiliza canal
+
+INotificationAdapter --> AdapterSendResult : devuelve resultado
+
+
+ChannelDeliveryResult --> NotificationChannel : canal utilizado
+
+ChannelDeliveryResult --> AdapterSendResult : resultado del envío
+
+ChannelDeliveryResultCollection --> ChannelDeliveryResult : contiene
+
+
+%% =========================================================
+%% RELACIONES DEL DOMINIO
+%% =========================================================
+
+NotificationProfile "1" *-- "1..*" NotificationRecipient : contiene
+
+NotificationProfile "1" *-- "1..*" NotificationChannel : configura
+
+NotificationProfile --> DeliveryPolicy : define política
+
+
+Alert "1" --> "0..*" Notification : genera
+
+NotificationRecipient "1" --> "0..*" Notification : recibe
+
+
+Notification "1" *-- "0..*" NotificationAttempt : registra
+
+
+NotificationChannel "1" --> "0..*" NotificationAttempt : utilizado en
+
+
+Notification --> NotificationStatus : mantiene estado
+
+NotificationAttempt --> NotificationDeliveryStatus : registra estado
+
+NotificationAttempt --> FailureClassification : clasifica falla
+
+
+NotificationChannel --> NotificationChannelType : define tipo
+
+
+AdapterSendResult --> NotificationDeliveryStatus : normaliza respuesta
+
+AdapterSendResult --> FailureClassification : clasifica resultado
+
+
+NotificationProcessingResult --> NotificationProcessingStatus : resume procesamiento
+
+
+NotificationRecipient --> RecipientRelationship : define relación
+
+
+NotificationChannelCollection --> NotificationChannel : contiene

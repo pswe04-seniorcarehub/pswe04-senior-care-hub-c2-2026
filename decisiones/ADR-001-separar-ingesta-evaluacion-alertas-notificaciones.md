@@ -2,8 +2,9 @@
 
 | Campo | Detalle |
 |---|---|
-| **Estado** | Propuesta |
+| **Estado** | Aceptada |
 | **Fecha** | 2026-07-25 |
+| **Última revisión** | 2026-08-10 |
 | **Autores** | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 | **Drivers atendidos** | RF-01, RF-03, QA-01, QA-02, QA-03, REST-01 |
 | **Escenarios relacionados** | QS-01, QS-02, QS-03 |
@@ -15,10 +16,11 @@ SeniorCareHub debe recibir continuamente eventos simulados de monitoreo, evaluar
 Estas actividades presentan características y ritmos distintos. La recepción de eventos debe continuar aunque el motor de reglas se encuentre temporalmente saturado, y la evaluación de eventos no debe detenerse por la indisponibilidad de un proveedor de SMS o correo electrónico.
 
 Una cadena de llamadas sincrónicas entre recepción, evaluación y notificación provocaría que el fallo de un componente se propagara al resto del pipeline. Además, obligaría a que todos los componentes estuvieran disponibles al mismo tiempo para poder procesar un evento.
+Esto tensionaría QA-01 y permitiría que un reinicio o fallo temporal provocara pérdida de trabajo, contrario a QA-03.
 
 ## Decisión
 
-Se decide dividir el pipeline crítico en cuatro responsabilidades principales:
+Se decide dividir el pipeline crítico en tres responsabilidades principales:
 
 - **Servicio de Ingesta**, responsable de validar y aceptar eventos.
 - **Motor de Reglas**, responsable de evaluar los eventos y determinar si deben generar una alerta, responsable de registrar la alerta y controlar su estado.
@@ -54,8 +56,15 @@ El productor no dependerá de que el consumidor se encuentre disponible en el in
 
 ## Evidencia y validación
 
-- **Vista:** sección 7.2, vista de contenedores.
-- **Flujo:** procesamiento de un evento crítico en la sección 10.1.4.
+- §7.2 — Vista de contenedores.
+- §7.3.1 — Flujo de evento crítico.
+- §7.3.2 — Fallo de proveedor y fallback.
+- §7.5 — Vista de concurrencia.
+- §10.1 — Motor de Reglas.
+- §10.2 — Servicio de Notificaciones.
+- §10.3 — Servicio de Ingesta.
+- ADR-005 — aceptación durable mediante Transactional Outbox.
+
 - **Prueba prevista:** detener temporalmente el Motor de Reglas mientras el Servicio de Ingesta continúa recibiendo eventos.
 - **Resultado esperado:** los eventos permanecen disponibles en el intermediario y son procesados cuando el consumidor se recupera.
 

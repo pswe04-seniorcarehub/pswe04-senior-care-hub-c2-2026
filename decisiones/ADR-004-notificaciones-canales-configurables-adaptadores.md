@@ -2,8 +2,9 @@
 
 | Campo | Detalle |
 |---|---|
-| **Estado** | Propuesta |
+| **Estado** | Aceptada |
 | **Fecha** | 2026-07-25 |
+| **Última revisión** | 2026-08-10 |
 | **Autores** | Equipo Grupo 3 |
 | **Drivers atendidos** | RF-03, RF-05, QA-02, QA-05, REST-01 |
 | **Escenarios relacionados** | QS-02, QS-05 |

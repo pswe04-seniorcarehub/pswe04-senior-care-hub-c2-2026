@@ -1,0 +1,75 @@
+@startuml concurrencia-seniorcarehub
+' =====================================================================
+' SeniorCareHub - Vista de concurrencia
+' PSWE-04 - Avance 3 (S14)
+' Muestra el particionamiento por sesion y la recuperacion de estado
+' Render: PlantUML estandar (no requiere C4-PlantUML)
+' =====================================================================
+skinparam backgroundColor transparent
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 15
+skinparam BoxPadding 10
+
+title Concurrencia: dos eventos del mismo adulto mayor y recuperacion tras fallo
+
+participant "Servicio de\nIngesta" as ING
+participant "Bus\n(topico eventos,\ncon sesiones)" as BUS
+box "Motor de Reglas" #F2F6FA
+participant "Replica 1" as R1
+participant "Replica 2" as R2
+end box
+database "BD Operativa\n(estado de\nconfirmacion)" as DB
+
+== Publicacion con identificador de sesion ==
+
+ING -> BUS: publicar evento E1\nSessionId = AM-001
+ING -> BUS: publicar evento E2\nSessionId = AM-001
+note right of BUS
+  Ambos eventos pertenecen a la
+  misma sesion, por lo que se
+  entregaran en orden y a un
+  unico consumidor.
+end note
+
+== Bloqueo exclusivo de sesion ==
+
+BUS -> R1: aceptar sesion AM-001\n(bloqueo exclusivo)
+BUS --> R2: sesion AM-001 no disponible
+note right of R2
+  La replica 2 queda libre para
+  atender otras sesiones. No hay
+  acceso concurrente al estado
+  de AM-001.
+end note
+
+R1 -> DB: leer estado de confirmacion de AM-001
+DB --> R1: ventana abierta, 1 evento previo
+R1 -> BUS: recibir E1
+R1 -> DB: actualizar estado (transaccion)
+
+== Fallo de la replica durante la evaluacion ==
+
+R1 -> BUS: recibir E2
+note over R1 #FADBD8
+  La replica 1 termina de forma
+  abrupta antes de confirmar E2.
+end note
+BUS -> BUS: expira el bloqueo de sesion
+
+== Recuperacion sin perdida ==
+
+BUS -> R2: aceptar sesion AM-001\n(bloqueo exclusivo)
+R2 -> DB: leer estado de confirmacion de AM-001
+DB --> R2: ultimo estado persistido
+note right of R2
+  Se retoma desde el ultimo estado
+  confirmado, no desde cero. E2 se
+  reentrega: la deduplicacion de
+  ADR-003 evita la alerta duplicada.
+end note
+R2 -> BUS: recibir E2 (reentrega)
+R2 -> DB: actualizar estado (transaccion)
+R2 -> BUS: publicar alerta confirmada
+R2 -> BUS: completar E1 y E2
+
+@enduml

@@ -1,0 +1,243 @@
+classDiagram
+    direction TB
+
+    %% =========================================================
+    %% PUNTO DE ENTRADA
+    %% =========================================================
+
+    class ProfileConfigurationController {
+        <<Boundary>>
+        -IProfileConfigurationService configurationService
+        +PublishNewVersionAsync(request, userContext) Task~ProfileConfigurationResult~
+        -MapToChanges(request) ProfileConfigurationChanges
+    }
+
+    %% =========================================================
+    %% SERVICIO PRINCIPAL
+    %% =========================================================
+
+    class IProfileConfigurationService {
+        <<interface>>
+        +PublishNewVersionAsync(olderAdultId, changes, changedBy) Task~ProfileConfigurationResult~
+    }
+
+    class ProfileConfigurationService {
+        <<Control>>
+        -IProfileConfigurationValidator validator
+        -IProfileConfigurationRepository repository
+        +PublishNewVersionAsync(olderAdultId, changes, changedBy) Task~ProfileConfigurationResult~
+    }
+
+    %% =========================================================
+    %% VALIDACIÓN
+    %% =========================================================
+
+    class IProfileConfigurationValidator {
+        <<interface>>
+        +Validate(configuration) ProfileConfigurationValidationResult
+    }
+
+    class ProfileConfigurationValidator {
+        <<Control>>
+        +Validate(configuration) ProfileConfigurationValidationResult
+    }
+
+    %% =========================================================
+    %% PERSISTENCIA
+    %% =========================================================
+
+    class IProfileConfigurationRepository {
+        <<interface>>
+        <<Repository>>
+        +GetActiveAsync(olderAdultId) Task~ProfileConfigurationVersion~
+        +SaveAndActivateAsync(configuration, auditEntry) Task
+    }
+
+    class PostgreSqlProfileConfigurationRepository {
+        <<Boundary>>
+        +GetActiveAsync(olderAdultId) Task~ProfileConfigurationVersion~
+        +SaveAndActivateAsync(configuration, auditEntry) Task
+    }
+
+    %% =========================================================
+    %% AGGREGATE ROOT
+    %% =========================================================
+
+    class ProfileConfigurationVersion {
+        <<Entity>>
+        +Guid ProfileId
+        +Guid OlderAdultId
+        +int Version
+        +bool IsActive
+        +DateTimeOffset CreatedAt
+        +Guid ChangedBy
+        +CreateNextVersion(changes, changedBy) ProfileConfigurationVersion
+    }
+
+    %% =========================================================
+    %% CONFIGURACIÓN DE MONITOREO
+    %% =========================================================
+
+    class MonitoringProfile {
+        <<Entity>>
+        +Guid ProfileId
+        +Guid OlderAdultId
+        +int Version
+        +bool IsActive
+        +RiskLevel RiskLevel
+    }
+
+    class MonitoringRule {
+        <<Entity>>
+        +Guid RuleId
+        +RuleType RuleType
+        +AlertSeverity Severity
+        +bool RequiresConfirmation
+        +Dictionary Parameters
+    }
+
+    %% =========================================================
+    %% CONFIGURACIÓN DE NOTIFICACIONES
+    %% =========================================================
+
+    class NotificationProfile {
+        <<Entity>>
+        +Guid ProfileId
+        +Guid OlderAdultId
+        +int ProfileVersion
+    }
+
+    class NotificationRecipient {
+        <<Entity>>
+        +Guid RecipientId
+        +string Name
+        +RecipientRelationship Relationship
+        +bool IsEnabled
+        +string? PhoneNumber
+        +string? EmailAddress
+        +string? MessagingAddress
+    }
+
+    class NotificationChannel {
+        <<Entity>>
+        +Guid ChannelId
+        +NotificationChannelType ChannelType
+        +string ProviderId
+        +int Priority
+        +bool IsEnabled
+    }
+
+    class NotificationPreference {
+        <<Entity>>
+        +Guid PreferenceId
+        +DeliveryPolicyType DeliveryPolicy
+        +AlertSeverity Severity
+    }
+
+    %% =========================================================
+    %% CAMBIOS SOLICITADOS
+    %% =========================================================
+
+    class ProfileConfigurationChanges {
+        <<Value Object>>
+        +MonitoringProfile MonitoringProfile
+        +MonitoringRule[] Rules
+        +NotificationProfile NotificationProfile
+        +NotificationRecipient[] Recipients
+        +NotificationChannel[] Channels
+        +NotificationPreference[] Preferences
+    }
+
+    %% =========================================================
+    %% AUDITORÍA
+    %% =========================================================
+
+    class ConfigurationAuditEntry {
+        <<Entity>>
+        +Guid AuditId
+        +Guid ProfileId
+        +int Version
+        +Guid ChangedBy
+        +DateTimeOffset ChangedAt
+        +string Action
+        +string CorrelationId
+    }
+
+    %% =========================================================
+    %% RESULTADOS
+    %% =========================================================
+
+    class ProfileConfigurationResult {
+        <<Value Object>>
+        +ProfileConfigurationStatus Status
+        +Guid ProfileId
+        +int? PublishedVersion
+        +string? Reason
+    }
+
+    class ProfileConfigurationValidationResult {
+        <<Value Object>>
+        +bool IsValid
+        +string[] Errors
+    }
+
+    %% =========================================================
+    %% ENUMERACIONES
+    %% =========================================================
+
+    class ProfileConfigurationStatus {
+        <<enumeration>>
+        Published
+        Invalid
+        NotFound
+        Unauthorized
+    }
+
+    class DeliveryPolicyType {
+        <<enumeration>>
+        Parallel
+        PriorityFallback
+    }
+
+    %% =========================================================
+    %% IMPLEMENTACIONES
+    %% =========================================================
+
+    IProfileConfigurationService <|.. ProfileConfigurationService
+    IProfileConfigurationValidator <|.. ProfileConfigurationValidator
+    IProfileConfigurationRepository <|.. PostgreSqlProfileConfigurationRepository
+
+    %% =========================================================
+    %% FLUJO PRINCIPAL
+    %% =========================================================
+
+    ProfileConfigurationController --> IProfileConfigurationService : delega publicación
+    ProfileConfigurationController --> ProfileConfigurationChanges : transforma solicitud
+
+    ProfileConfigurationService --> IProfileConfigurationRepository : recupera versión activa
+    ProfileConfigurationService --> ProfileConfigurationVersion : crea nueva versión
+    ProfileConfigurationService --> IProfileConfigurationValidator : valida configuración
+    ProfileConfigurationService --> ConfigurationAuditEntry : crea registro de auditoría
+    ProfileConfigurationService --> IProfileConfigurationRepository : guarda y activa versión
+    ProfileConfigurationService --> ProfileConfigurationResult : devuelve resultado
+
+    IProfileConfigurationValidator --> ProfileConfigurationValidationResult : devuelve validación
+
+    %% =========================================================
+    %% RELACIONES DEL DOMINIO
+    %% =========================================================
+
+    ProfileConfigurationVersion "1" *-- "1" MonitoringProfile : contiene
+    ProfileConfigurationVersion "1" *-- "1" NotificationProfile : contiene
+
+    MonitoringProfile "1" *-- "0..*" MonitoringRule : contiene reglas
+
+    NotificationProfile "1" *-- "0..*" NotificationRecipient : contiene
+    NotificationProfile "1" *-- "0..*" NotificationChannel : configura
+    NotificationProfile "1" *-- "0..*" NotificationPreference : define preferencias
+
+    NotificationPreference --> DeliveryPolicyType : define política
+
+    ConfigurationAuditEntry --> ProfileConfigurationVersion : registra publicación
+
+    ProfileConfigurationResult --> ProfileConfigurationStatus : representa estado

@@ -1,0 +1,73 @@
+@startuml c4-componentes-seniorcarehub
+' =====================================================================
+' SeniorCareHub - Vistas de componentes (C4 - Nivel 3)
+' PSWE-04 - Entrega final (S14)
+' Dos subsistemas: Motor de Reglas y Servicio de Notificaciones.
+' Nomenclatura identica a las clases e interfaces de las secciones
+' 10.1 y 10.2 del documento (disenio detallado).
+' Render: PlantUML + extension C4-PlantUML (se incluye de forma remota)
+' =====================================================================
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Vista de componentes (C4 - Nivel 3): Motor de Reglas y Servicio de Notificaciones
+
+' ---------------------- Elementos externos ----------------------
+ContainerQueue_Ext(topicoEventos, "Bus - topico de eventos crudos", "Azure Service Bus", "Sesiones por adulto mayor.")
+ContainerQueue_Ext(topicoAlertas, "Bus - topico de alertas confirmadas", "Azure Service Bus", "Sin sesiones; consumidores en competencia.")
+ContainerDb_Ext(bdo, "BD Operativa", "Azure Database for PostgreSQL", "Perfiles, reglas, alertas, acuses y estado de confirmacion.")
+System_Ext(proveedores, "Servicios de notificacion externos", "Proveedores de correo, SMS y mensajeria.")
+
+' ---------------------- Motor de Reglas ----------------------
+Container_Boundary(mr, "Motor de Reglas") {
+    Component(emc, "EventMessageConsumer", "Worker .NET", "Consume la sesion con bloqueo exclusivo y coordina el ciclo del mensaje.")
+    Component(rps, "RuleProcessingService", "IRuleProcessingService", "Orquesta la validacion, evaluacion, confirmacion y publicacion.")
+    Component(ev, "EventValidator", "IEventValidator", "Valida el evento entrante antes de evaluarlo.")
+    Component(ref, "RuleEvaluatorFactory", "IRuleEvaluatorFactory", "Selecciona el evaluador segun el tipo de regla (Factory).")
+    Component(eval, "Evaluadores de reglas", "IRuleEvaluator - Strategy", "FallRuleEvaluator, InactivityRuleEvaluator, SafeZoneRuleEvaluator.")
+    Component(conf, "ConfirmationService", "IConfirmationService", "Ventana de confirmacion y correlacion de eventos (ADR-003).")
+    Component(dedup, "DeduplicationService", "IDeduplicationService", "Deduplicacion por adulto mayor, tipo y periodo.")
+    Component(repoMr, "Repositorios", "Repository", "IMonitoringProfileRepository, IMonitoringRuleRepository, IAlertRepository, IConfirmationStateRepository; implementaciones PostgreSql*.")
+    Component(pub, "Publicador de alertas", "IAlertPublisher", "AzureServiceBusAlertPublisher.")
+}
+
+' ---------------------- Servicio de Notificaciones ----------------------
+Container_Boundary(sn, "Servicio de Notificaciones") {
+    Component(amc, "AlertMessageConsumer", "Worker .NET", "Consume la alerta confirmada y coordina el ciclo del mensaje.")
+    Component(nps, "NotificationProcessingService", "INotificationProcessingService", "Orquesta la resolucion de politica, seleccion de canal y despacho.")
+    Component(dpr, "DeliveryPolicyResolver", "Servicio de dominio", "Resuelve la politica de entrega segun el perfil y la criticidad.")
+    Component(css, "ChannelSelectionService", "Servicio de dominio", "Ordena los canales por prioridad para el destinatario.")
+    Component(strat, "Estrategias de entrega", "IChannelDeliveryStrategy - Strategy", "PriorityFallbackDeliveryStrategy, ParallelDeliveryStrategy.")
+    Component(naf, "NotificationAdapterFactory", "Factory", "Crea el adaptador del canal seleccionado.")
+    Component(adap, "Adaptadores de proveedor", "INotificationAdapter - Adapter", "EmailNotificationAdapter, SmsNotificationAdapter, InstantMessagingNotificationAdapter.")
+    Component(repoSn, "Repositorios", "Repository", "INotificationProfileRepository, INotificationTrackingRepository; implementaciones PostgreSql*.")
+}
+
+' ---------------------- Relaciones: Motor de Reglas ----------------------
+Rel(topicoEventos, emc, "Entrega el evento crudo", "AMQP 1.0 - sesion")
+Rel(emc, rps, "Delega el procesamiento", "IRuleProcessingService")
+Rel(rps, ev, "Valida", "IEventValidator")
+Rel(rps, ref, "Solicita evaluador", "IRuleEvaluatorFactory")
+Rel(ref, eval, "Instancia", "IRuleEvaluator")
+Rel(rps, conf, "Confirma", "IConfirmationService")
+Rel(rps, dedup, "Deduplica", "IDeduplicationService")
+Rel(rps, repoMr, "Lee reglas y perfiles, escribe alertas", "interfaces de repositorio")
+Rel(conf, repoMr, "Persiste el estado de confirmacion", "IConfirmationStateRepository")
+Rel(rps, pub, "Publica la alerta confirmada", "IAlertPublisher")
+Rel(pub, topicoAlertas, "Publica", "AMQP 1.0")
+Rel(repoMr, bdo, "Lee y escribe", "SQL/TLS")
+
+' ---------------------- Relaciones: Servicio de Notificaciones ----------------------
+Rel(topicoAlertas, amc, "Entrega la alerta confirmada", "AMQP 1.0")
+Rel(amc, nps, "Delega el despacho", "INotificationProcessingService")
+Rel(nps, dpr, "Resuelve la politica de entrega")
+Rel(nps, css, "Ordena los canales por prioridad")
+Rel(nps, strat, "Ejecuta la estrategia", "IChannelDeliveryStrategy")
+Rel(strat, naf, "Solicita el adaptador del canal")
+Rel(naf, adap, "Crea", "INotificationAdapter")
+Rel(adap, proveedores, "Despacha la notificacion", "HTTPS/REST y SMTP")
+Rel(nps, repoSn, "Lee el perfil de notificacion", "INotificationProfileRepository")
+Rel(strat, repoSn, "Registra cada intento y resultado", "INotificationTrackingRepository")
+Rel(repoSn, bdo, "Lee y escribe", "SQL/TLS")
+
+SHOW_LEGEND()
+@enduml

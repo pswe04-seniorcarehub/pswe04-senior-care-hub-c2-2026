@@ -12,8 +12,8 @@
 | **URL del repositorio** | https://github.com/pswe04-seniorcarehub/pswe04-senior-care-hub-c2-2026.git |
 | **Docente** | Juan Mauricio Leandro Jimenez |
 | **Cuatrimestre** | 2026 — II Cuatrimestre |
-| **Versión del documento** | 0.3 — Avance 2(S11) |
-| **Fecha de última actualización** | 2026-07-26 |
+| **Versión del documento** | 1.0 — Entrega final (S14) |
+| **Fecha de última actualización** | 2026-08-11 |
 
 ---
 
@@ -24,6 +24,7 @@
 | 0.1 | 2026-05-26 | Propuesta (S03) | Creación del documento inicial | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 | 0.2 | 2026-06-24 | Avance 1 (S07) | Desarrollo del contexto del sistema, alcance, usuarios, stakeholders, drivers arquitectónicos, escenarios de calidad y vista de contexto C4. | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 | 0.3 | 2026-07-26 | Avance 2 (S11) | Incorporación de la vista de contenedores, estilo arquitectónico, análisis de alternativas, trade-offs, ADRs y primer diseño detallado de componentes. | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
+| 1.0 | 2026-08-11 | Entrega final (S14) | Documento completo | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 
 ---
 
@@ -38,9 +39,45 @@
 7. [Vistas arquitectónicas](#7-vistas-arquitectónicas)
    - 7.1 [Vista de contexto](#71-vista-de-contexto)
    - 7.2 [Vista de contenedores](#72-vista-de-contenedores)
+   - 7.3 [Vista de comportamiento](#73-vista-de-comportamiento)
+   - 7.4 [Vista de despliegue](#74-vista-de-despliegue)
+   - 7.5 [Vista de concurrencia](#75-vista-de-concurrencia)
+   - 7.6 [Evolución de las vistas arquitectónicas](#76-evolución-de-las-vistas-arquitectónicas)
+   - 7.7 [Vistas de componentes](#77-vistas-de-componentes)
 8. [Estilo arquitectónico](#8-estilo-arquitectónico)
 9. [Registro de decisiones — ADRs](#9-registro-de-decisiones--adrs)
 10. [Diseño detallado de componentes](#10-diseño-detallado-de-componentes)
+   - 10.1 [Motor de reglas](#101-componente-1--motor-de-reglas)
+   - 10.2 [Servicio de Notificaciones](#102-componente-2--servicio-de-notificaciones)
+   - 10.3 [Servicio de Ingesta de Eventos](#103-componente-3--servicio-de-ingesta-de-eventos)
+   - 10.4 [API de Aplicación: Gestión de Configuración de Perfiles](#104-componente-4--api-de-aplicación-gestión-de-configuración-de-perfiles)
+11. [Patrones de diseño aplicados](#11-patrones-de-diseño-aplicados)
+   - 11.1 [Transactional Outbox](#patrón-1--transactional-outbox)
+   - 11.2 [Strategy](#patrón-2--strategy)
+   - 11.3 [Factory](#patrón-3--factory)
+   - 11.4 [Adapter](#patrón-4--adapter)
+   - 11.5 [Repository](#patrón-5--repository)
+12. [Principios y técnicas habilitadoras — evidencia](#12-principios-y-técnicas-habilitadoras--evidencia)
+   - 12.1 [Evidencia de principios de diseño](#121-evidencia-de-principios-de-diseño)
+   - 12.2 [Técnicas habilitadoras evidenciadas](#122-técnicas-habilitadoras-evidenciadas)
+   - 12.3 [Tensiones y criterio de aplicación](#123-tensiones-y-criterio-de-aplicación)
+13. [Análisis de calidad del diseño](#13-análisis-de-calidad-del-diseño)
+   - 13.1 [Validación de escenarios de calidad](#131-validación-de-escenarios-de-calidad)
+   - 13.2 [Análisis de trade-offs entre atributos de calidad](#132-análisis-de-trade-offs-entre-atributos-de-calidad)
+   - 13.3 [Métricas de diseño — estimación](#133-métricas-de-diseño--estimación)   
+14. [Asuntos clave de diseño](#14-asuntos-clave-de-diseño)
+   - 14.1 [Sistemas distribuidos y computación en la nube](#141-sistemas-distribuidos-y-computación-en-la-nube)
+   - 14.2 [Sistemas concurrentes y de tiempo real](#142-sistemas-concurrentes-y-de-tiempo-real)
+   - 14.3 [Sistemas IoT y computación en el borde](#143-sistemas-iot-y-computación-en-el-borde)
+   - 14.4 [Sistemas con IA Generativa / Agentes](#144-sistemas-con-ia-generativa--agentes)
+   - 14.5 [Sistemas con seguridad crítica](#145-sistemas-con-seguridad-crítica)
+15. [Tendencias y evolución](#15-tendencias-y-evolución)
+16. [Glosario](#16-glosario)
+17. [Referencias](#17-referencias)
+   - 17.1 [Arquitectura y diseño de software](#171-arquitectura-y-diseño-de-software)
+   - 17.2 [Patrones empresariales e integración](#172-patrones-empresariales-e-integración)
+   - 17.3 [Seguridad y privacidad](#173-seguridad-y-privacidad)
+   - 17.4 [Documentación técnica de Microsoft Azure](#174-documentación-técnica-de-microsoft-azure)
 ---
 
 # BLOQUE 1 — CONTEXTO Y PROBLEMA
@@ -438,6 +475,513 @@ flowchart TB
 
 Los cuatro actores (Adulto Mayor, Familiar, Cuidador Profesional y Administrador) y los dos sistemas externos (Wearable simulado y Servicios de notificación externos) son los mismos declarados en §7.1, sin altas ni bajas. Las relaciones que en la vista de contexto entraban o salían de la caja única de SeniorCareHub se refinan aquí hacia el contenedor específico que las atiende: la emisión de eventos del wearable aterriza en el Servicio de Ingesta, el acceso de los cuatro actores humanos entra por la App Web, y la salida hacia los proveedores de notificación parte del Servicio de Notificaciones, que a su vez entregan la alerta al Familiar y al Cuidador Profesional tal como se representó en §7.1. El Adulto Mayor conserva la doble relación con el sistema definida en §7.1: una indirecta, mediada por el wearable que genera los eventos, y una directa con la App Web cuando consulta su propio estado e historial.
 
+### 7.3 Vista de comportamiento
+
+Esta vista describe cómo colaboran en el tiempo los contenedores definidos en §7.2 para producir los comportamientos que el sistema debe garantizar. Se documentan tres flujos representativos, seleccionados porque cada uno ejercita un escenario de calidad distinto de §4 y porque juntos recorren el camino crítico completo, su modo de fallo principal y su capacidad de cambio en operación.
+
+Los diagramas de esta sección operan a nivel de contenedores: muestran qué unidad desplegable participa y en qué orden, sin detallar la estructura interna de cada una. El comportamiento interno de los componentes se documenta en §10.
+
+#### 7.3.1 Flujo 1 — Detección y notificación de un evento crítico
+
+Corresponde al camino principal del sistema y ejercita el escenario QS-02, cuya meta es que la primera notificación se emita en cinco segundos o menos en el percentil 95.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant WE as Wearable simulado
+    participant ING as Servicio de Ingesta
+    participant BDE as Almacen de Eventos
+    participant BUS as Bus de Mensajeria
+    participant MR as Motor de Reglas
+    participant BDO as BD Operativa
+    participant SN as Servicio de Notificaciones
+    participant PR as Proveedores externos
+    participant FA as Familiar
+
+    WE->>ING: Emitir evento de caida (HTTPS/TLS)
+    ING->>ING: Autenticar dispositivo y validar estructura
+    ING->>BDE: Persistir evento + OutboxMessage (transaccion local, ADR-005)
+    ING-->>WE: Aceptado (aceptacion durable tras el commit)
+    ING->>BUS: Publicar evento crudo via OutboxPublisher, asincrono (SessionId = adulto mayor)
+
+    Note over ING,BUS: La ingesta responde sin esperar la evaluacion.<br/>El desacople temporal protege QS-01.
+
+    BUS->>MR: Entregar evento crudo
+    MR->>BDO: Leer reglas vigentes y estado de confirmacion
+    BDO-->>MR: Version de reglas y estado
+    MR->>MR: Evaluar. Criticidad inmediata: no requiere ventana
+    MR->>BDO: Registrar alerta con version de reglas y eventos origen
+    MR->>BUS: Publicar alerta confirmada
+    MR->>BUS: Completar el evento crudo
+
+    BUS->>SN: Entregar alerta confirmada
+    SN->>BDO: Leer perfil de notificacion y canales por prioridad
+    BDO-->>SN: Destinatarios y orden de canales
+    SN->>PR: Despachar por el canal de mayor prioridad
+    PR-->>SN: Aceptado
+    PR->>FA: Entregar la alerta
+    SN->>BDO: Registrar acuse de entrega
+    SN->>BUS: Completar la alerta
+
+    Note over ING,PR: Ventana medida por QS-02: de la aceptacion durable del evento<br/>a la aceptacion por el primer proveedor: 5 s (p95), 8 s (p99).
+```
+
+*Figura 3 — Secuencia de sistema: detección y notificación de un evento crítico*
+
+El orden de las operaciones responde a ADR-005: la aceptación se emite tras el commit de la transacción local que persiste el evento junto con su OutboxMessage, sin esperar la publicación al bus, que el OutboxPublisher realiza de forma asíncrona. Una falla antes del commit deja al emisor sin confirmación y este reintenta — la unicidad de EventId responde AlreadyAccepted sin duplicar nada. Una falla posterior al commit no pierde el evento: la intención de publicar quedó persistida y se reintenta.
+
+#### 7.3.2 Flujo 2 — Fallo del proveedor de notificación
+
+Ejercita el escenario QS-03: ante la indisponibilidad de un proveedor, ninguna alerta crítica se pierde y el primer intento por un canal alterno comienza en menos de diez segundos en el percentil 95. Es el flujo que justifica el estilo adoptado en §8.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant BUS as Bus de Mensajeria
+    participant SN as Servicio de Notificaciones
+    participant BDO as BD Operativa
+    participant P1 as Proveedor SMS
+    participant P2 as Proveedor correo
+    participant CU as Cuidador
+
+    BUS->>SN: Entregar alerta confirmada
+    SN->>BDO: Leer canales ordenados por prioridad
+    BDO-->>SN: SMS, luego correo
+
+    SN->>P1: Despachar por SMS
+    P1--xSN: Sin respuesta dentro del tiempo limite
+    SN->>BDO: Registrar intento fallido
+
+    Note over SN,BUS: La alerta sigue bloqueada en el bus, no completada.<br/>Mientras no se confirme, no puede perderse.
+
+    SN->>P2: Despachar por el siguiente canal
+    P2-->>SN: Aceptado
+    P2->>CU: Entregar la alerta
+    SN->>BDO: Registrar acuse con canal efectivo
+    SN->>BUS: Completar la alerta
+
+    alt Todos los canales fallan
+        SN->>BUS: No completar la alerta
+        BUS->>SN: Reentregar tras el intervalo de reintento
+        Note over BUS: Agotados los reintentos, la alerta pasa a la<br/>cola de mensajes muertos para intervencion manual.<br/>En ningun caso se descarta.
+    end
+```
+
+*Figura 4 — Secuencia de sistema: fallo del proveedor y entrega por canal alterno*
+
+#### 7.3.3 Flujo 3 — Cambio de una regla de detección en operación
+
+Ejercita el escenario QS-05: una regla nueva o modificada entra en vigencia en menos de diez minutos y sin detener el sistema. Demuestra la modificabilidad declarada como QA-05 y materializa la decisión de ADR-002.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant AD as Administrador
+    participant WEB as App Web
+    participant API as API de Aplicacion
+    participant BDO as BD Operativa
+    participant BUS as Bus de Mensajeria
+    participant MR as Motor de Reglas
+
+    AD->>WEB: Modificar umbral de inactividad de un perfil
+    WEB->>API: Enviar la configuracion (HTTPS/JSON)
+    API->>API: Autorizar por rol y validar la configuracion
+    API->>BDO: Guardar como version nueva de la regla
+    BDO-->>API: Version registrada
+    API-->>WEB: Confirmacion
+    WEB-->>AD: Regla vigente
+
+    Note over API,BDO: La regla anterior se conserva.<br/>El versionado permite auditar que version<br/>evaluo cada alerta (ADR-002).
+
+    BUS->>MR: Entregar el siguiente evento del mismo adulto mayor
+    MR->>BDO: Leer reglas vigentes
+    BDO-->>MR: Version nueva
+    MR->>MR: Evaluar con la version nueva
+    MR->>BDO: Registrar la evaluacion con la version utilizada
+
+    Note over MR: Sin recompilar, sin redesplegar y sin reiniciar<br/>ningun contenedor del sistema.
+```
+
+*Figura 5 — Secuencia de sistema: cambio de una regla de detección sin interrupción*
+
+> Fuente editable de los tres flujos: `diagramas/comportamiento.puml`.
+
+#### 7.3.4 Trazabilidad hacia los escenarios de calidad
+
+| Flujo | Escenario | Qué demuestra | Contenedores involucrados |
+|---|---|---|---|
+| Detección y notificación de evento crítico | QS-02 | El camino completo se recorre dentro del presupuesto de latencia, con respuesta inmediata de la ingesta | Ingesta, Bus, Motor de Reglas, Notificaciones, ambas bases |
+| Fallo del proveedor de notificación | QS-03 | La alerta permanece bajo custodia del bus hasta confirmarse la entrega; el fallo de un canal no la destruye | Bus, Notificaciones, BD Operativa |
+| Cambio de regla en operación | QS-05 | La configuración se modifica en caliente y la evaluación siguiente ya utiliza la versión nueva | App Web, API, BD Operativa, Motor de Reglas |
+
+Los tres flujos comparten una propiedad que conviene hacer explícita: en ningún momento un contenedor invoca sincrónicamente a otro dentro del camino crítico. Toda transición entre etapas ocurre a través del bus, lo que constituye la evidencia de comportamiento del estilo adoptado en §8 y de la decisión registrada en ADR-001.
+
+#### 7.3.5 Consistencia con las vistas anteriores
+
+Los participantes de los tres diagramas son exclusivamente contenedores declarados en §7.2 y actores o sistemas externos declarados en §7.1. No se introduce ningún elemento nuevo. Las relaciones ejercitadas —ingesta hacia el bus, bus hacia el motor, motor hacia el bus, bus hacia notificaciones, y notificaciones hacia los proveedores externos— son las mismas de la tabla de relaciones de §7.2.2, recorridas ahora en orden temporal.
+
+### 7.4 Vista de despliegue
+
+Esta vista muestra la infraestructura sobre la que se ejecutan los contenedores definidos en §7.2, la correspondencia entre cada contenedor y su nodo de ejecución, y las decisiones de dimensionamiento que responden a los atributos de calidad del sistema.
+
+Todos los recursos gestionados se agrupan en un único grupo de recursos, `rg-seniorcarehub`, desplegado en la región **East US 2** por ser la de menor latencia de red hacia Costa Rica entre las regiones con disponibilidad completa de los servicios utilizados. La agrupación en un solo grupo de recursos permite además aprovisionar y eliminar el entorno completo como una unidad, lo que resulta conveniente para un despliegue de duración acotada.
+
+```mermaid
+flowchart TB
+    subgraph CLI["Fuera de la nube"]
+        direction TB
+        NAV["Dispositivo del usuario<br/>Navegador web"]
+        SIM["Estacion de simulacion<br/>Contenedor Docker · .NET"]
+    end
+
+    subgraph AZ["Azure · East US 2 · rg-seniorcarehub"]
+        direction TB
+        SWA["Azure Static Web Apps<br/><i>Free</i>"]
+        subgraph ASP["App Service Plan Linux B1"]
+            direction TB
+            API["API de Aplicacion"]
+            ING["Servicio de Ingesta"]
+        end
+        subgraph ACA["Entorno de Azure Container Apps"]
+            direction TB
+            REG["Motor de Reglas<br/><i>min 1 replica</i>"]
+            NOT["Servicio de Notificaciones<br/><i>min 1 replica</i>"]
+        end
+        SB["Azure Service Bus<br/><i>Standard</i>"]
+        subgraph PG["PostgreSQL Flexible Server B1ms"]
+            direction TB
+            BDO[("BD Operativa")]
+            BDE[("Almacen de Eventos")]
+        end
+        KV["Azure Key Vault"]
+        AI["Application Insights<br/>+ Log Analytics"]
+    end
+
+    EXT["Servicios de notificacion<br/><i>proveedores externos</i>"]
+
+    NAV -->|"HTTPS"| SWA
+    SWA -->|"HTTPS/JSON"| API
+    SIM -->|"HTTPS/TLS"| ING
+
+    ING -->|"AMQP 1.0"| SB
+    SB -->|"AMQP 1.0"| REG
+    REG -->|"AMQP 1.0"| SB
+    SB -->|"AMQP 1.0"| NOT
+    NOT -->|"HTTPS y SMTP"| EXT
+
+    API -->|"SQL/TLS"| BDO
+    REG -->|"SQL/TLS"| BDO
+    NOT -->|"SQL/TLS"| BDO
+    ING -->|"SQL/TLS"| BDE
+    API -->|"SQL/TLS"| BDE
+
+    API -.->|"telemetria"| AI
+    ING -.->|"telemetria"| AI
+    REG -.->|"telemetria"| AI
+    NOT -.->|"telemetria"| AI
+
+    API -.->|"secretos"| KV
+    ING -.->|"secretos"| KV
+    REG -.->|"secretos"| KV
+    NOT -.->|"secretos"| KV
+
+    classDef nube fill:#438DD5,stroke:#2E6295,color:#FFFFFF
+    classDef fuera fill:#08427B,stroke:#052E56,color:#FFFFFF
+    classDef ext fill:#999999,stroke:#6B6B6B,color:#FFFFFF
+    class SWA,API,ING,REG,NOT,SB,BDO,BDE,KV,AI nube
+    class NAV,SIM fuera
+    class EXT ext
+```
+
+*Figura 6 — Vista de despliegue de SeniorCareHub sobre Microsoft Azure*
+
+> **Leyenda.** Azul oscuro: nodos fuera de la nube. Azul claro: recursos gestionados de Azure. Gris: proveedores externos. Las líneas continuas representan el flujo funcional; las punteadas, dependencias transversales de telemetría y gestión de secretos.
+>
+> Fuente editable en notación e iconografía C4 formal: `diagramas/c4-despliegue.puml`.
+
+#### 7.4.1 Nodos de despliegue
+
+| Nodo | Servicio y dimensionamiento | Contenedores alojados (§7.2) | Justificación |
+|---|---|---|---|
+| Dispositivo del usuario | Navegador web | App Web (ejecución) | La SPA se descarga y ejecuta en el cliente; no requiere cómputo en la nube. |
+| Estación de simulación | Contenedor Docker con aplicación .NET | Simulador de wearable (sistema externo) | Sustituye al dispositivo físico. Se ejecuta fuera de la nube para representar fielmente a un emisor externo al sistema. |
+| Azure Static Web Apps | Nivel Free | App Web (distribución) | Distribuye los archivos estáticos con certificado TLS gestionado. El nivel gratuito es suficiente porque no ejecuta lógica de servidor. |
+| App Service Plan Linux | B1 (1 vCPU, 1.75 GB) | API de Aplicación, Servicio de Ingesta | Ambos son servicios web con carga moderada y exposición HTTP directa. Comparten plan para contener el costo. |
+| Entorno de Azure Container Apps | Consumo, mínimo 1 réplica por aplicación | Motor de Reglas, Servicio de Notificaciones | Procesos consumidores de larga duración, sin exposición pública, con escalado independiente por profundidad de cola. |
+| Azure Service Bus | Namespace tier Standard | Bus de Mensajería | El tier Standard es el mínimo que ofrece tópicos con suscripciones múltiples, sesiones ordenadas y detección de duplicados. |
+| PostgreSQL Flexible Server | B1ms, almacenamiento 32 GB | BD Operativa, Almacén de Eventos | Un mismo servidor aloja ambas bases lógicas. El volumen previsto no justifica dos servidores independientes. |
+| Azure Key Vault | Estándar | — | Custodia cadenas de conexión y credenciales de proveedores externos. |
+| Application Insights y Log Analytics | Pago por ingesta | — | Recibe trazas correlacionadas de los cuatro servicios y sostiene la depuración distribuida exigida por el estilo (§8.4). |
+
+#### 7.4.2 Decisiones de despliegue y sus trade-offs
+
+**Réplica mínima permanente en Container Apps.** Azure Container Apps permite reducir a cero réplicas y no facturar cómputo en reposo. Se descarta esa configuración para el Motor de Reglas y el Servicio de Notificaciones porque el arranque en frío introduce una demora de varios segundos que consumiría el presupuesto completo de QS-02, cuya meta es de 5 segundos en el percentil 95. Se acepta el costo de mantener una réplica activa de forma permanente a cambio de latencia predecible. El escalado hacia arriba sí es automático, gobernado por la profundidad de la suscripción del bus.
+
+**Plan de App Service compartido entre API e Ingesta.** Ambos servicios web comparten un mismo plan B1, lo que reduce el costo respecto de dos planes independientes. La contrapartida es que comparten CPU y memoria: una ráfaga sostenida de eventos entrantes podría degradar el tiempo de respuesta de las consultas del dashboard. Se acepta el riesgo porque los perfiles de carga previstos son moderados, y la mitigación está identificada: separar la ingesta a un plan propio, cambio que no afecta a ningún otro contenedor por tratarse de servicios ya desacoplados.
+
+**Identidades administradas en lugar de credenciales en configuración.** El acceso de los servicios a Service Bus, PostgreSQL y Key Vault se realiza mediante identidades administradas de Microsoft Entra ID, de modo que ninguna credencial persiste en archivos de configuración ni en variables de entorno del despliegue. Esta decisión responde directamente a QA-04 y a la obligación de resguardo de datos personales de REST-02, y reduce la superficie expuesta ante una filtración de configuración.
+
+**Instancia única sin redundancia de zona.** Los servicios se despliegan en una sola zona de disponibilidad. La redundancia de zona multiplicaría el costo de PostgreSQL y del namespace de mensajería, y la meta comprometida en QS-01 es de 99.5 % mensual, equivalente a poco menos de 3.6 horas de indisponibilidad, alcanzable con la configuración descrita. El dimensionamiento se realizó contra la meta declarada y no por encima de ella; elevar el objetivo de disponibilidad exigiría revisar esta decisión antes que cualquier otra.
+
+#### 7.4.3 Consistencia con la vista de contenedores
+
+Los ocho contenedores de §7.2 tienen exactamente un nodo de ejecución asignado y no se introduce ningún contenedor nuevo. La App Web aparece dos veces con roles distintos —distribuida desde Static Web Apps y ejecutada en el navegador del usuario—, lo que corresponde a la naturaleza de una aplicación de página única. El Bus de Mensajería se materializa en el namespace de Service Bus, y las dos bases de datos comparten servidor sin dejar de ser almacenes lógicamente separados, tal como se representó en §7.2. Los proveedores externos de notificación conservan su condición de sistemas fuera del alcance del equipo, coherente con §7.1. Key Vault y Application Insights no corresponden a contenedores del nivel 2: son servicios de plataforma transversales que sostienen decisiones ya documentadas en §8.4 sobre observabilidad y gestión de secretos.
+
+### 7.5 Vista de concurrencia
+
+Esta vista describe qué unidades de ejecución operan simultáneamente en SeniorCareHub, qué recursos comparten, dónde aparece contención y qué mecanismos garantizan que el procesamiento concurrente no comprometa la corrección de las alertas.
+
+El sistema es concurrente por naturaleza: múltiples adultos mayores emiten eventos al mismo tiempo, y cada etapa del pipeline definido en §8 escala de forma independiente. El desafío central no es el volumen, sino el orden: la etapa de confirmación descrita en ADR-003 mantiene estado temporal por persona monitoreada, y evaluar dos eventos de un mismo adulto mayor en paralelo produciría alertas duplicadas o, peor, la pérdida de una confirmación válida.
+
+```mermaid
+flowchart TB
+    ING["Servicio de Ingesta<br/><i>sin estado · N instancias</i>"]
+
+    subgraph BUS["Bus de Mensajeria"]
+        direction TB
+        TE["Topico: eventos crudos<br/><i>con sesiones</i>"]
+        TA["Topico: alertas confirmadas<br/><i>sin sesiones</i>"]
+    end
+
+    subgraph SES["Sesiones activas · una por adulto mayor"]
+        direction LR
+        S1["sesion AM-001"]
+        S2["sesion AM-002"]
+        S3["sesion AM-003"]
+    end
+
+    subgraph MR["Motor de Reglas · replicas"]
+        direction LR
+        R1["replica 1"]
+        R2["replica 2"]
+    end
+
+    subgraph SN["Servicio de Notificaciones · replicas"]
+        direction LR
+        N1["replica 1"]
+        N2["replica 2"]
+    end
+
+    EST[("BD Operativa<br/>estado de confirmacion<br/>+ reglas + alertas")]
+
+    ING -->|"publica con<br/>SessionId = id adulto mayor"| TE
+    TE --> S1
+    TE --> S2
+    TE --> S3
+
+    S1 -->|"lock exclusivo"| R1
+    S2 -->|"lock exclusivo"| R1
+    S3 -->|"lock exclusivo"| R2
+
+    R1 -->|"lee y persiste estado"| EST
+    R2 -->|"lee y persiste estado"| EST
+
+    R1 -->|"publica alerta"| TA
+    R2 -->|"publica alerta"| TA
+
+    TA -->|"consumidores<br/>en competencia"| N1
+    TA -->|"consumidores<br/>en competencia"| N2
+
+    classDef proc fill:#438DD5,stroke:#2E6295,color:#FFFFFF
+    classDef ses fill:#0E7C86,stroke:#0A5A61,color:#FFFFFF
+    classDef db fill:#08427B,stroke:#052E56,color:#FFFFFF
+    class ING,R1,R2,N1,N2,TE,TA proc
+    class S1,S2,S3 ses
+    class EST db
+```
+
+*Figura 7 — Vista de concurrencia: particionamiento por sesión y consumidores en competencia*
+
+> **Leyenda.** Azul claro: unidades de ejecución concurrentes. Verde azulado: sesiones lógicas del bus, una por adulto mayor. Azul oscuro: estado compartido persistente.
+>
+> Fuente editable en formato de secuencia PlantUML: `diagramas/concurrencia.puml`.
+
+#### 7.5.1 Unidades de concurrencia
+
+| Unidad | Multiplicidad | Disparador | Estado que mantiene | Aislamiento |
+|---|---|---|---|---|
+| Servicio de Ingesta | N instancias tras el balanceador del App Service | Petición HTTP del wearable | Ninguno | No requiere: es un servicio sin estado. |
+| Motor de Reglas | N réplicas, escaladas por profundidad de la suscripción | Mensaje disponible en la suscripción con sesión | Ventana de confirmación por adulto mayor | Sesión con bloqueo exclusivo: una sesión es atendida por una sola réplica a la vez. |
+| Servicio de Notificaciones | N réplicas | Alerta confirmada disponible | Ninguno entre mensajes | Consumidores en competencia sin orden garantizado, porque el despacho de dos alertas distintas es independiente. |
+| API de Aplicación | N instancias | Petición HTTP del usuario | Ninguno | Transacciones de base de datos para lecturas y escrituras de configuración. |
+
+#### 7.5.2 Recursos compartidos y puntos de contención
+
+| Recurso compartido | Quién lo accede concurrentemente | Riesgo | Mecanismo de control |
+|---|---|---|---|
+| Estado de la ventana de confirmación | Réplicas del Motor de Reglas | Dos eventos del mismo adulto mayor evaluados en paralelo generan alertas duplicadas o pierden una confirmación | Particionamiento por sesión: el bloqueo exclusivo de sesión garantiza que solo una réplica evalúe a esa persona en un momento dado |
+| Configuración de reglas y perfiles | Motor de Reglas (lectura), API (escritura) | Una evaluación en curso podría usar una regla a medio actualizar | Versionado de reglas según ADR-002: cada evaluación fija la versión al inicio y la registra en la alerta |
+| BD Operativa | Motor de Reglas, Servicio de Notificaciones, API | Agotamiento del pool de conexiones al escalar réplicas | Dimensionamiento del pool por réplica contra el límite de conexiones del servidor B1ms |
+| Registro de acuses de entrega | Réplicas del Servicio de Notificaciones | Doble envío ante reentrega del mismo mensaje | Clave de idempotencia por alerta y canal: el segundo intento detecta el acuse ya registrado y no reenvía |
+
+#### 7.5.3 Decisiones de sincronización
+
+**Particionamiento por sesión en lugar de bloqueos explícitos.** La ordenación se resuelve en la infraestructura de mensajería y no en el código: el Servicio de Ingesta publica cada evento con el identificador del adulto mayor como identificador de sesión, y el bus garantiza que los mensajes de una misma sesión se entreguen en orden a un único consumidor con bloqueo exclusivo. El Motor de Reglas nunca necesita bloqueos ni semáforos sobre el estado de confirmación, porque no existe acceso concurrente a la partición que atiende. El trade-off es que el paralelismo máximo efectivo queda acotado por el número de adultos mayores con eventos activos: agregar réplicas más allá de esa cifra no incrementa el rendimiento. Para el volumen previsto es una restricción holgada.
+
+**El estado de confirmación se persiste, no reside solo en memoria.** ADR-003 dejó abierta la recuperación del estado temporal tras un reinicio. Se decide persistir el estado de cada ventana de confirmación en la BD Operativa, con el identificador del adulto mayor como clave, y actualizarlo en la misma transacción en que se registra la evaluación. Al tomar una sesión, la réplica lee el estado vigente antes de evaluar. De este modo, si una réplica termina de forma abrupta, el bus libera el bloqueo y otra réplica retoma la sesión desde el último estado confirmado, en lugar de comenzar la ventana desde cero y arriesgar la pérdida de una alerta —lo que comprometería QS-03. El costo es una escritura adicional por evaluación, admisible dentro del presupuesto de latencia de QS-02.
+
+**Duración del bloqueo dimensionada por encima del tiempo de evaluación.** El bus mantiene el mensaje bloqueado durante un intervalo acotado mientras el consumidor lo procesa. Si la evaluación excediera ese intervalo, el mensaje se reentregaría y produciría una evaluación duplicada. Se establece que la duración del bloqueo debe superar con margen el tiempo de evaluación observado en el percentil 99, y que el consumidor renueve el bloqueo en operaciones prolongadas. Esta es una condición de configuración que debe verificarse durante las pruebas y no una propiedad garantizada por el diseño.
+
+**Idempotencia como requisito transversal.** Por la semántica de entrega al menos una vez documentada en §8.4, todo consumidor debe tolerar recibir el mismo mensaje más de una vez. En el Motor de Reglas esto se resuelve con la deduplicación por adulto mayor, tipo de evento y período establecida en ADR-003; en el Servicio de Notificaciones, con la clave de idempotencia por alerta y canal. Ningún consumidor puede asumir procesamiento exactamente una vez.
+
+**Ausencia de orden en el despacho de notificaciones.** El tópico de alertas confirmadas no utiliza sesiones. Dos alertas de personas distintas, o incluso dos alertas sucesivas de la misma persona, pueden despacharse en paralelo y en cualquier orden, porque cada notificación es independiente y lleva su propia referencia a los eventos que la originaron. Renunciar al orden en esta etapa maximiza el paralelismo justo donde la latencia importa, sin afectar la corrección.
+
+#### 7.5.4 Consistencia con las vistas anteriores
+
+Las unidades de concurrencia descritas corresponden exactamente a los contenedores de §7.2 y a los nodos de ejecución de §7.4: las réplicas del Motor de Reglas y del Servicio de Notificaciones son las instancias del entorno de Container Apps, y las instancias de la API y la Ingesta son las del App Service Plan compartido. Las sesiones no constituyen un contenedor adicional, sino una característica del Bus de Mensajería ya declarada en la tabla de contenedores de §7.2.1 y justificada en §8.
+
+### 7.6 Evolución de las vistas arquitectónicas
+
+Las vistas de este capítulo no se produjeron de una sola vez: se construyeron y corrigieron a lo largo de los tres hitos del proyecto. Esta sección documenta qué cambió en cada una, por qué cambió y dónde queda la evidencia en el historial del repositorio, de modo que la arquitectura presentada pueda leerse como el resultado de un proceso de revisión y no como una versión final sin trazabilidad.
+
+#### 7.6.1 Resumen por hito
+
+| Hito | Vistas incorporadas | Vistas modificadas |
+|---|---|---|
+| Avance 1 (S07) | 7.1 Vista de contexto | — |
+| Avance 2 (S11) | 7.2 Vista de contenedores | 7.2 (tres correcciones posteriores a la revisión interna) |
+| Entrega final (S14) | 7.3 Comportamiento, 7.4 Despliegue, 7.5 Concurrencia, 7.7 Componentes de dos subsistemas | — |
+
+#### 7.6.2 Vista de contexto: estabilidad deliberada
+
+La vista de contexto no ha sufrido modificaciones sustantivas desde el Avance 1. Sus cuatro actores —Adulto Mayor, Familiar, Cuidador Profesional y Administrador— y sus dos sistemas externos —el wearable simulado y los servicios de notificación— se mantienen sin altas ni bajas.
+
+Esta estabilidad no es casual y conviene interpretarla correctamente: indica que la frontera del sistema y su relación con el entorno quedaron bien delimitadas desde el primer hito. Los cambios posteriores ocurrieron todos en niveles de mayor detalle, que es donde se esperaba que ocurrieran. Un vaivén en la vista de contexto habría señalado, en cambio, un problema de alcance no resuelto.
+
+#### 7.6.3 Vista de contenedores: tres correcciones de consistencia
+
+La vista de contenedores se incorporó en el Avance 2 y recibió tres modificaciones antes de la entrega final. Las tres se originaron en revisiones internas del equipo, no en observaciones del docente, y las tres corrigen inconsistencias con el nivel superior.
+
+| Cambio | Motivo | Evidencia |
+|---|---|---|
+| Se agregó la relación directa entre el Adulto Mayor y la App Web, y se rediseñó el diagrama para mejorar su legibilidad | La revisión de una integrante detectó que la vista de contexto incluía al Adulto Mayor como usuario del portal de consultas, mientras que la vista de contenedores lo representaba únicamente como portador del wearable | `63fdd2d` |
+| Se agregaron las relaciones de entrega de la alerta desde los servicios de notificación hacia el Familiar y el Cuidador Profesional | La vista de contexto mostraba la entrega final al destinatario, pero en la vista de contenedores el flujo terminaba en los proveedores externos y nunca alcanzaba a las personas | `cee2141` |
+| Se agregó el pie de la Figura 2 | La numeración de figuras del documento saltaba de la 1 a la 3 porque el diagrama de contenedores carecía de rótulo | `06c6e4b` |
+
+El patrón común de las dos primeras es significativo: en ambos casos el nivel de contenedores había omitido una relación que el nivel de contexto sí declaraba. La revisión cruzada entre niveles resultó ser el mecanismo que las detectó, y por eso cada vista de este capítulo cierra con una subsección explícita de consistencia con las anteriores.
+
+#### 7.6.4 Vistas incorporadas en la entrega final
+
+Las vistas agregadas en este hito no modifican las anteriores: las complementan en dimensiones que hasta el Avance 2 no estaban documentadas.
+
+La **vista de comportamiento** (§7.3) recorre en el tiempo las mismas relaciones ya declaradas en la tabla de §7.2.2, sin introducir participantes nuevos. La **vista de despliegue** (§7.4) asigna un nodo de ejecución a cada contenedor existente, sin crear contenedores adicionales. La **vista de concurrencia** (§7.5) describe cómo se multiplican en ejecución esos mismos contenedores y cómo se coordinan al compartir estado. La **vista de componentes** (§7.7) abre dos de los contenedores existentes y agrupa, con su misma nomenclatura, las clases cuyo diseño detallado se documenta en §10.
+
+Una de ellas, además, cerró una decisión que había quedado abierta: ADR-003 señalaba como consecuencia negativa que era necesario definir cómo recuperar el estado temporal de la ventana de confirmación tras un reinicio. La §7.5.3 resuelve ese punto al establecer que el estado se persiste en la BD Operativa dentro de la misma transacción de la evaluación, lo que permite que otra réplica retome una sesión interrumpida sin reiniciar la ventana.
+
+#### 7.6.5 Cambios evaluados y descartados
+
+Documentar lo que no cambió, y por qué, forma parte del registro de evolución.
+
+**Incorporar Microsoft Entra ID como sistema externo.** Al elaborar la vista de despliegue se evaluó representar al proveedor de identidad como un elemento explícito de las vistas. Se descartó porque habría introducido en un nivel inferior un sistema externo ausente de la vista de contexto del Avance 1, generando precisamente el tipo de inconsistencia entre niveles que las revisiones anteriores habían corregido. El mecanismo de identidades administradas se documenta en el texto de §7.4.2, donde su justificación es visible sin alterar la frontera del sistema.
+
+**Desagregar los proveedores de notificación por canal.** Se consideró representar por separado los proveedores de correo, SMS y mensajería. Se mantuvo la agrupación en un único sistema externo por coherencia con la vista de contexto, y porque la diferenciación por canal es una cuestión de configuración resuelta mediante adaptadores según ADR-004, no una distinción de frontera arquitectónica.
+
+**Materializar un contenedor de Gestión de Alertas.** ADR-001 identificaba inicialmente la gestión de alertas como una responsabilidad separada dentro del pipeline. Se optó por alojarla en el Motor de Reglas en lugar de crear un contenedor propio, dado que su ciclo de vida y sus datos están estrechamente ligados a la evaluación que origina la alerta. La redacción del ADR se ajustó en consecuencia para mantener la coherencia con esta vista.
+
+### 7.7 Vistas de componentes
+
+Estas vistas abren dos de los contenedores declarados en §7.2 y muestran los componentes que los constituyen: qué piezas existen dentro de cada uno, qué responsabilidad tiene cada pieza y cómo colaboran. Se documentan los dos subsistemas con mayor densidad de decisiones registradas: el **Motor de Reglas** (ADR-002 y ADR-003) y el **Servicio de Notificaciones** (ADR-004).
+
+El nivel de detalle es el intermedio de la jerarquía C4: los componentes de estas vistas agrupan las clases e interfaces cuyo diseño detallado —firmas, contratos, análisis de robustez y secuencias— se documenta en §10.1 y §10.2. La nomenclatura es la misma en ambos capítulos, de modo que cada caja de estas vistas puede rastrearse hasta sus clases en el diseño detallado.
+
+#### 7.7.1 Componentes del Motor de Reglas
+
+```mermaid
+flowchart TB
+    TE["Bus · topico de eventos crudos<br/><i>sesiones por adulto mayor</i>"]
+    TA["Bus · topico de alertas confirmadas"]
+    BDO[("BD Operativa")]
+
+    subgraph MR["Contenedor: Motor de Reglas"]
+        direction TB
+        EMC["EventMessageConsumer<br/><i>Consume la sesion con bloqueo exclusivo<br/>y coordina el ciclo del mensaje</i>"]
+        RPS["RuleProcessingService<br/><i>IRuleProcessingService · orquesta la evaluacion</i>"]
+        EV["EventValidator<br/><i>IEventValidator · valida el evento entrante</i>"]
+        REF["RuleEvaluatorFactory<br/><i>IRuleEvaluatorFactory · selecciona el evaluador<br/>segun el tipo de regla</i>"]
+        EVAL["Evaluadores de reglas · Strategy<br/><i>IRuleEvaluator: FallRuleEvaluator ·<br/>InactivityRuleEvaluator · SafeZoneRuleEvaluator</i>"]
+        CONF["ConfirmationService<br/><i>IConfirmationService · ventana de confirmacion<br/>y correlacion de eventos</i>"]
+        DEDUP["DeduplicationService<br/><i>IDeduplicationService · deduplicacion por<br/>adulto mayor, tipo y periodo</i>"]
+        REPO["Repositorios · Repository<br/><i>IMonitoringProfileRepository · IMonitoringRuleRepository ·<br/>IAlertRepository · IConfirmationStateRepository<br/>(implementaciones PostgreSql*)</i>"]
+        PUB["Publicador de alertas<br/><i>IAlertPublisher · AzureServiceBusAlertPublisher</i>"]
+    end
+
+    TE -->|"AMQP 1.0 · sesion"| EMC
+    EMC -->|"IRuleProcessingService"| RPS
+    RPS -->|"IEventValidator"| EV
+    RPS -->|"IRuleEvaluatorFactory"| REF
+    REF -->|"IRuleEvaluator"| EVAL
+    RPS -->|"IConfirmationService"| CONF
+    RPS -->|"IDeduplicationService"| DEDUP
+    RPS -->|"interfaces de repositorio"| REPO
+    CONF -->|"IConfirmationStateRepository"| REPO
+    RPS -->|"IAlertPublisher"| PUB
+    PUB -->|"AMQP 1.0"| TA
+    REPO -->|"SQL/TLS"| BDO
+
+    classDef comp fill:#438DD5,stroke:#2E6295,color:#FFFFFF
+    classDef ext fill:#999999,stroke:#6B6B6B,color:#FFFFFF
+    classDef db fill:#08427B,stroke:#052E56,color:#FFFFFF
+    class EMC,RPS,EV,REF,EVAL,CONF,DEDUP,REPO,PUB comp
+    class TE,TA ext
+    class BDO db
+```
+
+*Figura 8 — Vista de componentes (C4 · Nivel 3): Motor de Reglas*
+
+La estructura materializa las decisiones registradas: los tres evaluadores concretos tras la interfaz `IRuleEvaluator`, seleccionados por `RuleEvaluatorFactory`, son la realización del conjunto controlado de tipos de reglas de ADR-002; `ConfirmationService` y `DeduplicationService` son la etapa de confirmación de ADR-003; y la separación entre interfaces de repositorio e implementaciones `PostgreSql*` mantiene la lógica de evaluación independiente de la tecnología de persistencia. `EventMessageConsumer` es el único componente que conoce el bus: el resto del contenedor ignora de dónde provienen los eventos, lo que permite probarlo sin infraestructura de mensajería.
+
+#### 7.7.2 Componentes del Servicio de Notificaciones
+
+```mermaid
+flowchart TB
+    TA2["Bus · topico de alertas confirmadas"]
+    BDO2[("BD Operativa")]
+    PROV["Servicios de notificacion externos"]
+
+    subgraph SN["Contenedor: Servicio de Notificaciones"]
+        direction TB
+        AMC["AlertMessageConsumer<br/><i>Consume la alerta confirmada y<br/>coordina el ciclo del mensaje</i>"]
+        NPS["NotificationProcessingService<br/><i>INotificationProcessingService · orquesta el despacho</i>"]
+        DPR["DeliveryPolicyResolver<br/><i>Resuelve la politica de entrega<br/>segun el perfil y la criticidad</i>"]
+        CSS["ChannelSelectionService<br/><i>Ordena los canales por prioridad<br/>para el destinatario</i>"]
+        STRAT["Estrategias de entrega · Strategy<br/><i>IChannelDeliveryStrategy:<br/>PriorityFallbackDeliveryStrategy ·<br/>ParallelDeliveryStrategy</i>"]
+        NAF["NotificationAdapterFactory<br/><i>Crea el adaptador del canal seleccionado</i>"]
+        ADAP["Adaptadores de proveedor · Adapter<br/><i>INotificationAdapter: EmailNotificationAdapter ·<br/>SmsNotificationAdapter ·<br/>InstantMessagingNotificationAdapter</i>"]
+        REPO2["Repositorios · Repository<br/><i>INotificationProfileRepository ·<br/>INotificationTrackingRepository<br/>(implementaciones PostgreSql*)</i>"]
+    end
+
+    TA2 -->|"AMQP 1.0"| AMC
+    AMC -->|"INotificationProcessingService"| NPS
+    NPS -->|"resuelve politica"| DPR
+    NPS -->|"ordena canales"| CSS
+    NPS -->|"IChannelDeliveryStrategy"| STRAT
+    STRAT -->|"solicita adaptador"| NAF
+    NAF -->|"INotificationAdapter"| ADAP
+    ADAP -->|"HTTPS/REST y SMTP"| PROV
+    NPS -->|"interfaces de repositorio"| REPO2
+    STRAT -->|"INotificationTrackingRepository"| REPO2
+    REPO2 -->|"SQL/TLS"| BDO2
+
+    classDef comp fill:#438DD5,stroke:#2E6295,color:#FFFFFF
+    classDef ext fill:#999999,stroke:#6B6B6B,color:#FFFFFF
+    classDef db fill:#08427B,stroke:#052E56,color:#FFFFFF
+    class AMC,NPS,DPR,CSS,STRAT,NAF,ADAP,REPO2 comp
+    class TA2,PROV ext
+    class BDO2 db
+```
+
+*Figura 9 — Vista de componentes (C4 · Nivel 3): Servicio de Notificaciones*
+
+> Fuente editable de ambas vistas en notación C4 formal: `diagramas/c4-componentes.puml`.
+
+La cadena de despacho materializa ADR-004 de extremo a extremo: `DeliveryPolicyResolver` y `ChannelSelectionService` deciden el qué y el en qué orden; la estrategia de entrega —`PriorityFallbackDeliveryStrategy` para el escalamiento por canal alterno del flujo de §7.3.2, o `ParallelDeliveryStrategy` cuando la política exige todos los canales a la vez— decide el cómo; y los adaptadores concretos tras `INotificationAdapter` aíslan cada proveedor externo, de modo que incorporar un canal nuevo consiste en agregar un adaptador sin tocar la orquestación. `INotificationTrackingRepository` registra cada intento y su resultado, sosteniendo tanto la clave de idempotencia de §7.5.2 como la bitácora de auditoría.
+
+#### 7.7.3 Consistencia con las vistas y el diseño detallado
+
+**Hacia arriba (§7.2):** cada vista abre exactamente un contenedor declarado en la vista de contenedores, y sus dependencias externas —los tópicos del bus, la BD Operativa y los proveedores— son las mismas relaciones que la tabla de §7.2.2 asigna a esos contenedores, sin agregar ni omitir ninguna. Los componentes no cruzan la frontera de su contenedor: la única comunicación entre el Motor de Reglas y el Servicio de Notificaciones sigue siendo el tópico de alertas confirmadas, coherente con la propiedad de §7.3.4 de que ningún contenedor invoca sincrónicamente a otro.
+
+**Hacia abajo (§10):** los componentes de estas vistas agrupan las clases, interfaces y enumeraciones del diseño detallado con su misma nomenclatura. Las cajas compuestas agrupan familias completas: los evaluadores concretos bajo `IRuleEvaluator`, los adaptadores bajo `INotificationAdapter`, y las implementaciones `PostgreSql*` bajo sus interfaces de repositorio. Los contratos de §10.1.2 y §10.2.2 corresponden a las flechas de estas vistas: cada relación entre componentes está respaldada por una interfaz con firma documentada. Las entidades (`MonitoringEvent`, `Alert`, `Notification`, entre otras) y las enumeraciones no se representan como componentes porque no son unidades de comportamiento sino datos que circulan entre ellas; su detalle corresponde al nivel de clases.
+
 ---
 
 # BLOQUE 4 — DECISIONES ARQUITECTÓNICAS
@@ -513,23 +1057,24 @@ Las siguientes decisiones documentan los aspectos arquitectónicos que tienen ma
 Cada ADR indica explícitamente los drivers que origina la decisión y los escenarios de calidad que permiten validarla. De esta forma, las decisiones arquitectónicas no se presentan como elecciones tecnológicas aisladas, sino como respuestas concretas a los requerimientos prioritarios de SeniorCareHub.
 
 ### Resumen de decisiones
-Se documentaron cuatro decisiones arquitectónicas significativas que afectan la estructura del pipeline crítico de SeniorCareHub, la configurabilidad del motor de reglas, el manejo de falsas alarmas, la confiabilidad de entrega de eventos y el desacoplamiento del envío de notificaciones. Cada ADR detalla el contexto, la decisión tomada, las alternativas evaluadas y sus consecuencias.
+Se documentaron cinco decisiones arquitectónicas significativas que afectan la estructura del pipeline crítico de SeniorCareHub, la configurabilidad del motor de reglas, el manejo de falsas alarmas, la confiabilidad de entrega de eventos y el desacoplamiento del envío de notificaciones. Cada ADR detalla el contexto, la decisión tomada, las alternativas evaluadas y sus consecuencias.
 
 | ADR | Título | Estado | Drivers atendidos |
 |---|---|---|---|
-| [ADR-001](/decisiones/ADR-001-separar-ingesta-evaluacion-alertas-notificaciones.md) | Separar ingesta, evaluación, alertas y notificaciones mediante eventos | Propuesta | RF-01, RF-03, QA-01, QA-02, QA-03, REST-01 |
-| [ADR-002](/decisiones/ADR-002-motor-reglas-configurable-perfiles-versionados.md) | Implementar un motor de reglas configurable y perfiles versionados | Propuesta | RF-02, RF-05, QA-02, QA-05 |
-| [ADR-003](/decisiones/ADR-003-gestion-falsas-alarmas-correlacion-confirmacion.md) | Gestionar falsas alarmas mediante correlación, confirmación y deduplicación | Propuesta | RF-02, RF-05, QA-02, QA-03 |
-| [ADR-004](/decisiones/ADR-004-notificaciones-canales-configurables-adaptadores.md) | Desacoplar las notificaciones mediante canales configurables y adaptadores | Propuesta | RF-03, RF-05, QA-02, QA-05, REST-01 |
-
+| [ADR-001](/decisiones/ADR-001-separar-ingesta-evaluacion-alertas-notificaciones.md) | Separar ingesta, evaluación, alertas y notificaciones mediante eventos | Aceptada | RF-01, RF-03, QA-01, QA-02, QA-03, REST-01 |
+| [ADR-002](/decisiones/ADR-002-motor-reglas-configurable-perfiles-versionados.md) | Implementar un motor de reglas configurable y perfiles versionados | Aceptada | RF-02, RF-05, QA-02, QA-05 |
+| [ADR-003](/decisiones/ADR-003-gestion-falsas-alarmas-correlacion-confirmacion.md) | Gestionar falsas alarmas mediante correlación, confirmación y deduplicación | Aceptada | RF-02, RF-05, QA-02, QA-03 |
+| [ADR-004](/decisiones/ADR-004-notificaciones-canales-configurables-adaptadores.md) | Desacoplar las notificaciones mediante canales configurables y adaptadores | Aceptada | RF-03, RF-05, QA-02, QA-05, REST-01 |
+| [ADR-005](/decisiones/ADR-005-garantizar-la-aceptacion-durable-de-eventos-mediante-transactional-outbox.md) | Garantizar la aceptación durable de eventos mediante Transactional Outbox | Aceptada | RF-01, QA-01, QA-02, QA-03|
 ---
 
 ### ADR-001: Separar ingesta, evaluación, alertas y notificaciones mediante eventos
 
 | Campo | Detalle |
 |---|---|
-| **Estado** | Propuesta |
+| **Estado** | Aceptada |
 | **Fecha** | 2026-07-25 |
+| **Última revisión** | 2026-08-10 |
 | **Autores** | Roberto Obed Del Cid Winter, Lisdiana Mercedes Rodriguez Alvarado, Maria Isabel Vallejos Rodriguez |
 | **Drivers atendidos** | RF-01, RF-03, QA-01, QA-02, QA-03, REST-01 |
 | **Escenarios relacionados** | QS-01, QS-02, QS-03 |
@@ -541,10 +1086,11 @@ SeniorCareHub debe recibir continuamente eventos simulados de monitoreo, evaluar
 Estas actividades presentan características y ritmos distintos. La recepción de eventos debe continuar aunque el motor de reglas se encuentre temporalmente saturado, y la evaluación de eventos no debe detenerse por la indisponibilidad de un proveedor de SMS o correo electrónico.
 
 Una cadena de llamadas sincrónicas entre recepción, evaluación y notificación provocaría que el fallo de un componente se propagara al resto del pipeline. Además, obligaría a que todos los componentes estuvieran disponibles al mismo tiempo para poder procesar un evento.
+Esto tensionaría QA-01 y permitiría que un reinicio o fallo temporal provocara pérdida de trabajo, contrario a QA-03.
 
 #### Decisión
 
-Se decide dividir el pipeline crítico en cuatro responsabilidades principales:
+Se decide dividir el pipeline crítico en tres responsabilidades principales:
 
 - **Servicio de Ingesta**, responsable de validar y aceptar eventos.
 - **Motor de Reglas**, responsable de evaluar los eventos y determinar si deben generar una alerta, responsable de registrar la alerta y controlar su estado.
@@ -580,8 +1126,15 @@ El productor no dependerá de que el consumidor se encuentre disponible en el in
 
 #### Evidencia y validación
 
-- **Vista:** sección 7.2, vista de contenedores.
-- **Flujo:** procesamiento de un evento crítico en la sección 10.1.4.
+- §7.2 — Vista de contenedores.
+- §7.3.1 — Flujo de evento crítico.
+- §7.3.2 — Fallo de proveedor y fallback.
+- §7.5 — Vista de concurrencia.
+- §10.1 — Motor de Reglas.
+- §10.2 — Servicio de Notificaciones.
+- §10.3 — Servicio de Ingesta.
+- ADR-005 — aceptación durable mediante Transactional Outbox.
+
 - **Prueba prevista:** detener temporalmente el Motor de Reglas mientras el Servicio de Ingesta continúa recibiendo eventos.
 - **Resultado esperado:** los eventos permanecen disponibles en el intermediario y son procesados cuando el consumidor se recupera.
 
@@ -591,14 +1144,16 @@ El productor no dependerá de que el consumidor se encuentre disponible en el in
 - La operación del sistema no puede asumir la complejidad de una plataforma distribuida.
 - El volumen real de eventos resulta suficientemente pequeño y tolerante a fallos como para justificar una arquitectura más simple.
 
+
 ---
 
 ### ADR-002: Implementar un motor de reglas configurable y perfiles versionados
 
 | Campo | Detalle |
 |---|---|
-| **Estado** | Propuesta |
+| **Estado** | Aceptada |
 | **Fecha** | 2026-07-25 |
+ **Última revisión** | 2026-08-10 |
 | **Autores** | Equipo Grupo 3 |
 | **Drivers atendidos** | RF-02, RF-05, QA-02, QA-05 |
 | **Escenarios relacionados** | QS-02, QS-05 |
@@ -656,7 +1211,15 @@ La incorporación de un nuevo tipo de regla o algoritmo requerirá implementaci�
 - La flexibilidad introduce un costo adicional de evaluación.
 
 #### Evidencia y validación
-
+- §7.3.3 — Cambio de regla en operación.
+- §7.5.2–§7.5.3 — Versionado y estado de confirmación.
+- §10.1 — Motor de Reglas.
+- §10.2 — Servicio de Notificaciones.
+- §10.4 — Gestión de Configuración de Perfiles.
+- `ProfileConfigurationVersion`.
+- `ProfileConfigurationValidator`.
+- `SaveAndActivateAsync`.
+- `ConfigurationAuditEntry`.
 - **Componente detallado principal:** Motor de Reglas y Generación de Alertas.
 - **Patrón previsto:** Strategy para seleccionar el evaluador correspondiente al tipo de regla.
 - **Prueba prevista:** modificar el umbral de inactividad durante la operación y enviar eventos antes y después del cambio.
@@ -673,8 +1236,9 @@ La incorporación de un nuevo tipo de regla o algoritmo requerirá implementaci�
 
 | Campo | Detalle |
 |---|---|
-| **Estado** | Propuesta |
+| **Estado** | Aceptada |
 | **Fecha** | 2026-07-25 |
+| **Última revisión** | 2026-08-10 |
 | **Autores** | Equipo Grupo 3 |
 | **Drivers atendidos** | RF-02, RF-05, QA-02, QA-03 |
 | **Escenarios relacionados** | QS-02, QS-03, QS-05 |
@@ -692,11 +1256,14 @@ Se decide incorporar en el Motor de Reglas una etapa de confirmación configurab
 - Correlación de eventos relacionados.
 - Ventanas temporales de confirmación.
 - Deduplicación por adulto mayor, tipo de evento y período.
-- Estado temporal de evaluación por persona monitoreada.
+- Estado persistente de confirmación mediante `ConfirmationState`.
 - Niveles de confianza o criticidad.
 - Políticas diferenciadas según el tipo de evento.
+- Registro de la `ProfileVersion` utilizada.
 
 Los eventos de criticidad inmediata podrán generar una alerta sin esperar una ventana adicional cuando la regla configurada así lo determine. Los eventos ambiguos podrán requerir confirmación mediante eventos posteriores o el cumplimiento de una duración mínima.
+
+`ConfirmationState` se persiste en la BD Operativa. El estado se identifica por el adulto mayor, la regla y la versión de configuración aplicable. Ante un reinicio, la réplica que retoma el procesamiento recupera el último estado confirmado desde la base de datos.
 
 Una alerta confirmada deberá incluir una referencia a los eventos que la originaron y a la versión de reglas utilizada.
 
@@ -717,6 +1284,7 @@ Una alerta confirmada deberá incluir una referencia a los eventos que la origin
 - Reduce el riesgo de fatiga de alarmas para cuidadores y familiares.
 
 **Negativas**
+- La persistencia de `ConfirmationState` agrega lecturas/escrituras al camino crítico.
 - Mantener estado temporal incrementa la complejidad del Motor de Reglas.
 - Una ventana de confirmación excesiva puede retrasar alertas reales.
 - Es necesario definir cómo recuperar el estado después de un reinicio.
@@ -724,6 +1292,11 @@ Una alerta confirmada deberá incluir una referencia a los eventos que la origin
 
 #### Evidencia y validación
 
+- §7.5 — Vista de concurrencia.
+- §7.5.3 — Persistencia y recuperación de `ConfirmationState`.
+- §10.1.2 — `IConfirmationService` e `IConfirmationStateRepository`.
+- §10.1.4 — Flujo principal y error de persistencia.
+- §13.1 — Validación de QS-02 y QS-03.
 - **Componente:** Motor de Reglas y Generación de Alertas.
 - **Flujo de comportamiento:** correlación de eventos y confirmación de alerta.
 - **Prueba prevista:** simular eventos duplicados, pérdida breve de comunicación y una caída confirmada.
@@ -740,8 +1313,9 @@ Una alerta confirmada deberá incluir una referencia a los eventos que la origin
 
 | Campo | Detalle |
 |---|---|
-| **Estado** | Propuesta |
+| **Estado** | Aceptada |
 | **Fecha** | 2026-07-25 |
+| **Última revisión** | 2026-08-10 |
 | **Autores** | Equipo Grupo 3 |
 | **Drivers atendidos** | RF-03, RF-05, QA-02, QA-05, REST-01 |
 | **Escenarios relacionados** | QS-02, QS-05 |
@@ -802,6 +1376,103 @@ Cada proveedor externo se ubicará detrás de una interfaz interna estable. La s
 
 ---
 
+### ADR-005: Garantizar la aceptación durable de eventos mediante Transactional Outbox
+
+| Campo | Detalle |
+|---|---|
+| **Estado** | Aceptada |
+| **Fecha** | 2026-08-11 |
+| **Última revisión** | 2026-08-11 |
+| **Autores** | Equipo Grupo 3 |
+| **Drivers atendidos** | RF-01, QA-01, QA-02, QA-03 |
+| **Escenarios relacionados** | QS-01, QS-02, QS-03 |
+
+#### Contexto
+
+El Servicio de Ingesta debe conservar un evento antes de considerarlo aceptado y posteriormente publicarlo al Bus de Mensajería.
+
+Persistir en PostgreSQL y publicar en Service Bus son operaciones sobre recursos transaccionales diferentes. Si primero se persiste y después se publica directamente, una falla entre ambos pasos puede dejar un evento almacenado que nunca avance hacia el Motor de Reglas. Invertir el orden puede dejar un mensaje publicado cuya aceptación durable no quedó registrada.
+
+No existe en el diseño una transacción ACID única que abarque PostgreSQL y Service Bus.
+
+#### Decisión
+
+Se aplica **Transactional Outbox** dentro del Servicio de Ingesta.
+
+`IEventIngestionRepository.AcceptAsync(event, outboxMessage)` persiste en **la misma base de datos y la misma transacción local**:
+
+1. `MonitoringEvent`.
+2. `OutboxMessage`, que representa la intención durable de publicar dicho evento.
+
+En el despliegue actual ambos registros deben pertenecer al **Almacén de Eventos** para que la atomicidad descrita sea físicamente realizable.
+
+El evento se considera **aceptado durablemente después del commit local**. La respuesta de aceptación al emisor no espera que Service Bus acepte la publicación.
+
+Posteriormente, `OutboxPublisher`:
+
+1. recupera mensajes pendientes;
+2. los publica mediante `IEventPublisher`;
+3. marca como `Published` los mensajes aceptados por el Bus;
+4. mantiene pendientes los que fallan de forma recuperable.
+
+`EventId` es único. Una repetición de la misma solicitud produce `AlreadyAccepted` sin crear otro evento ni otro `OutboxMessage`.
+
+Puede ocurrir que Service Bus acepte un mensaje y falle el marcado local de `Published`. Por ello, la republicación es posible y los consumidores siguen siendo idempotentes. La detección de duplicados del broker es una defensa adicional, no un sustituto de la idempotencia de los consumidores.
+
+#### Alternativas consideradas
+
+| Alternativa | Ventajas | Desventajas | Motivo de descarte |
+|---|---|---|---|
+| Persistir y publicar directamente | Implementación simple | Ventana `DB OK / Bus FAIL` | Puede dejar eventos sin avanzar |
+| Publicar y luego persistir | Publicación inmediata | Ventana `Bus OK / DB FAIL` | Rompe trazabilidad de aceptación |
+| Transacción distribuida | Semántica transaccional fuerte entre recursos | Mayor complejidad y acoplamiento; no forma parte del diseño actual | No justificada |
+| Transactional Outbox | Atomicidad local, recuperación y desacoplamiento | Requiere tabla/estado adicional y publicador | **Alternativa seleccionada** |
+
+#### Consecuencias
+
+**Positivas**
+
+- Todo evento aceptado queda acompañado por una intención durable de publicación.
+- Una indisponibilidad temporal del Bus no provoca pérdida de un evento aceptado.
+- Los mensajes pendientes pueden publicarse cuando el Bus se recupera.
+- La unicidad de `EventId` mantiene idempotencia en la frontera de entrada.
+- QA-03 se extiende hasta el inicio del pipeline.
+
+**Negativas**
+
+- Se agregan `OutboxMessage`, `IOutboxRepository` y `OutboxPublisher`.
+- La publicación ocurre de forma asíncrona después de la respuesta HTTP.
+- El tiempo `commit → publicación` forma parte de QS-02.
+- Deben monitorearse profundidad y antigüedad del Outbox.
+- Una falla después de publicar pero antes de marcar `Published` puede producir republicación.
+- Varias instancias del publicador deben coordinar la selección de mensajes pendientes para evitar trabajo concurrente innecesario.
+
+#### Evidencia y validación
+
+- §10.3.1 — diseño de Ingesta.
+- §10.3.2 — contratos de persistencia, Outbox y publicación.
+- §10.3.4 — flujo principal y falla de publicación.
+- §12.2 — Transactional Outbox.
+- §13.1 — QS-02 y QS-03.
+- §13.2 — simplicidad de Ingesta vs. no pérdida.
+
+**Prueba prevista:** confirmar la transacción de aceptación y provocar indisponibilidad de Service Bus inmediatamente después.
+
+**Resultado esperado:** `MonitoringEvent` y `OutboxMessage` continúan persistidos y el evento se publica cuando el Bus vuelve a estar disponible.
+
+**Prueba adicional:** permitir la publicación y provocar una falla antes de marcar el Outbox como `Published`.
+
+**Resultado esperado:** una eventual republicación no produce una segunda alerta de negocio debido a la idempotencia y deduplicación del pipeline.
+
+#### Revisión requerida si
+
+- La arquitectura cambia de forma que el Bus se convierta en la primera aceptación durable.
+- La latencia del Outbox impide cumplir QS-02.
+- La profundidad o antigüedad del Outbox crece sostenidamente bajo la carga objetivo.
+- Se adopta una tecnología que permita una única transacción confiable entre almacenamiento y publicación sin introducir un acoplamiento inaceptable.
+
+---
+
 # BLOQUE 5 — DISEÑO DETALLADO
 *Hito: Entrega final (S14)*
 
@@ -809,7 +1480,7 @@ Cada proveedor externo se ubicará detrás de una interfaz interna estable. La s
 
 ## 10. Diseño detallado de componentes
 
-### Componente 1 — Motor de reglas
+### 10.1 Componente 1 — Motor de reglas
 
 **Responsabilidad:** Analizar los eventos recibidos desde el Bus de Mensajería, evaluarlos de acuerdo con las reglas configurables y el perfil de monitoreo del adulto mayor asociado, determinar si representan una situación de riesgo, establecer su nivel de criticidad y generar una alerta cuando corresponda, aplicando mecanismos de confirmación, deduplicación e idempotencia para evitar falsas alarmas y el procesamiento repetido de un mismo evento.
 
@@ -817,19 +1488,36 @@ Cada proveedor externo se ubicará detrás de una interfaz interna estable. La s
 
 #### 10.1.1 Diagrama de clases de diseño
 
-El siguiente diagrama presenta el diseño interno del componente Motor de Reglas. Se muestran las principales clases, interfaces y relaciones de colaboración que lo conforman, así como la aplicación preliminar de los patrones de diseño Strategy, Factory, Repository y Adapter. La descripción detallada de estos patrones se desarrollará en la Sección 11 del documento, correspondiente al siguiente avance.
+El siguiente diagrama presenta el diseño interno del componente Motor de Reglas. Se muestran las principales clases, interfaces y relaciones de colaboración que lo conforman, así como la aplicación de los patrones de diseño Strategy, Factory, Repository y Adapter para desacoplar las responsabilidades del componente y facilitar su extensibilidad y mantenimiento.
 
-El diseño se organiza alrededor de RuleProcessingService, responsable de coordinar la lógica del componente. El procesamiento inicia en EventMessageConsumer, que recibe los eventos desde el Bus de Mensajería y delega su procesamiento mediante la interfaz IRuleProcessingService. A partir de este punto, RuleProcessingService coordina la validación del evento, la consulta de perfiles y reglas, la evaluación mediante estrategias especializadas, la aplicación de mecanismos de confirmación y deduplicación, el almacenamiento de la alerta y su posterior publicación.
+El diseño se organiza alrededor de `RuleProcessingService`, responsable de coordinar el flujo completo de procesamiento. El procesamiento inicia en `EventMessageConsumer`, que recibe los eventos desde el Bus de Mensajería y delega su procesamiento mediante la interfaz `IRuleProcessingService`. A partir de este punto, `RuleProcessingService` coordina la validación del evento, la recuperación de la versión del perfil de monitoreo aplicable según el momento de recepción del evento y de las reglas activas asociadas a dicha versión, la evaluación mediante estrategias especializadas, la aplicación de los mecanismos de confirmación y deduplicación, la persistencia del estado temporal cuando la regla lo requiere, la generación y almacenamiento de la alerta, y finalmente su publicación mediante el mecanismo de mensajería configurado.
 
-![Diagrama de clases — Componente 1](../diagramas/clases-componente1.png)
-*Figura 3 — Diagrama de clases de diseño: Motor de reglas*
-> Para visualizar el diagrama con mayor nivel de detalle, consulte el archivo [clases-componente1.png](../diagramas/clases-componente1.png).
+![Diagrama de clases — Componente 1](../diagramas/componente1/clases-componente1.png)
+*Figura 10 — Diagrama de clases de diseño: Motor de Reglas*
+> **Imagen en tamaño completo:** [`clases-componente1.png`](../diagramas/componente1/clases-componente1.png) · **Fuente editable:** [`clases-componente1.mmd`](../diagramas/componente1/clases-componente1.mmd)
 
 #### 10.1.2 Contratos de interfaz
 
+El punto de entrada técnico del componente corresponde a EventMessageConsumer.HandleAsync(message): Task, invocado por el Bus de Mensajería para iniciar el procesamiento de cada evento recibido. Este consumidor delega el procesamiento al servicio principal del componente mediante ProcessAsync(event: MonitoringEvent): Task<ProcessingResult>. Adicionalmente, se documentan los contratos de las principales interfaces internas de colaboración del componente, ya que definen las responsabilidades, precondiciones, garantías y condiciones de error entre los elementos que participan en el flujo de procesamiento. Estas operaciones no representan endpoints externos del sistema, sino contratos internos entre los colaboradores del Motor de Reglas.
+
 | Método / Endpoint | Precondición | Postcondición | Excepciones |
 |---|---|---|---|
-| `ProcessAsync(event: MonitoringEvent): ProcessingResult` | El objeto MonitoringEvent debe contener la información mínima requerida para su procesamiento (identificador del evento, adulto mayor asociado, tipo de evento y fecha de ocurrencia). El componente debe encontrarse operativo y con acceso a los servicios requeridos para consultar perfiles, reglas y persistir alertas. | El evento ha sido procesado de acuerdo con las reglas y perfiles configurados. Cuando corresponde, la alerta ha sido generada, persistida y publicada. El método devuelve un objeto ProcessingResult que indica si el procesamiento fue exitoso, si se generó una alerta y el estado final de la operación. | Puede producir una excepción cuando el evento recibido es inválido, cuando no es posible acceder a los repositorios requeridos, cuando ocurre un error durante la publicación de la alerta o cuando se presenta una falla inesperada durante el procesamiento. |
+| `EventMessageConsumer.`<br>`HandleAsync`<br>`(message): Task` | El parámetro `message` no debe ser nulo. | El mensaje ha sido recibido, transformado en un `MonitoringEvent` y su procesamiento ha sido delegado mediante `IRuleProcessingService`. Si el procesamiento concluye satisfactoriamente, el mensaje se confirma al Bus. En caso de una falla técnica que impida completar el procesamiento de forma segura, el mensaje no se confirma y queda disponible para su reentrega conforme a la política de mensajería. | Puede producir una excepción cuando el mensaje no puede ser interpretado o transformado en un `MonitoringEvent`, cuando se cancela la operación o cuando ocurre una falla técnica inesperada durante el procesamiento o la comunicación con el Bus. |
+| `IRuleProcessingService.`<br>`ProcessAsync`<br>`(event: MonitoringEvent): `<br>`Task<ProcessingResult>`| El parámetro `event` no debe ser nulo. | El evento ha sido procesado, incluyendo las etapas aplicables de validación, recuperación del perfil de monitoreo aplicable al adulto mayor según el momento de recepción del evento y de las reglas activas asociadas a dicho perfil. Las reglas se evalúan mediante la estrategia correspondiente, se aplican los mecanismos de confirmación y deduplicación y, cuando la situación de riesgo resulta confirmada y no duplicada, se genera, persiste y publica una `Alert`. Se devuelve un `ProcessingResult` que representa el estado final del procesamiento. Las condiciones esperadas, como evento inválido, perfil inexistente, ausencia de reglas aplicables, condición no confirmada o duplicado detectado, se representan mediante el resultado y no mediante excepciones. | Puede producir una excepción ante una falla técnica al consultar o persistir información, durante la publicación de la alerta, ante la cancelación de la operación o cuando una inconsistencia interna impida completar el procesamiento de forma segura. |
+| `IEventValidator.`<br>`ValidateAsync`<br>`(event: MonitoringEvent):`<br>`Task<EventValidationResult>` | El parámetro `event` no debe ser nulo. | El evento ha sido evaluado para verificar que contiene la información mínima y válida requerida para continuar con el procesamiento. Se devuelve un `EventValidationResult` que indica si el evento es válido y, cuando corresponde, los errores de validación encontrados. | Puede producir una excepción ante una falla técnica inesperada durante la validación o ante la cancelación de la operación. Los eventos con información incompleta o inválida se representan mediante `EventValidationResult` y no mediante excepciones. |
+| `IMonitoringProfileRepository.`<br>`GetByOlderAdultIdAsync`<br>`(olderAdultId: Guid,`<br>` receivedAt: DateTimeOffset):`<br>`Task<MonitoringProfile?>` | El parámetro `olderAdultId` no debe ser nulo y `receivedAt` debe representar el momento en que el evento fue aceptado por el sistema. | Se consulta la fuente de datos y se devuelve el `MonitoringProfile` cuya versión era aplicable al adulto mayor en el momento indicado por `receivedAt`. Si no existe un perfil aplicable, se devuelve `null`. | Puede producir una excepción ante una falla técnica durante el acceso al repositorio, la cancelación de la operación o una falla inesperada. La ausencia de un perfil aplicable se representa mediante el valor de retorno y no se considera una condición excepcional. |
+| `IMonitoringRuleRepository.`<br>`GetActiveRulesAsync`<br>`(profileId: Guid, `<br>`profileVersion: int,`<br>`eventType: EventType):`<br>` Task<MonitoringRuleCollection>` | Los parámetros `profileId` y `eventType` no deben ser nulos, y `profileVersion` debe representar una versión válida. | Se consulta la fuente de datos y se devuelve la colección de `MonitoringRule` activas y aplicables asociadas al perfil, la versión y el tipo de evento especificados. Si no existen reglas aplicables, se devuelve una colección vacía. | Puede producir una excepción ante una falla técnica durante el acceso al repositorio, la cancelación de la operación o una falla inesperada. La ausencia de reglas aplicables se representa mediante una colección vacía y no se considera una condición excepcional. |
+| `IRuleEvaluatorFactory.`<br>`Create`<br>`(ruleType: RuleType):`<br>`IRuleEvaluator` | El parámetro `ruleType` debe corresponder a un valor válido de `RuleType`. | Se selecciona y devuelve una implementación de `IRuleEvaluator` compatible con el tipo de regla especificado. | Puede producir una excepción cuando no existe un evaluador compatible con el tipo de regla solicitado, cuando la configuración resulta ambigua porque más de un evaluador atiende el mismo tipo de regla o cuando ocurre una falla inesperada durante la selección.|
+| `IRuleEvaluator.Supports`<br>`(ruleType: RuleType):bool` | El parámetro `ruleType` debe corresponder a un valor válido de `RuleType`. | Se devuelve `true` cuando el evaluador es compatible con el tipo de regla especificado; de lo contrario, se devuelve `false`. | Puede producir una excepción ante una falla inesperada durante la determinación de compatibilidad. |
+| `IRuleEvaluator.Evaluate`<br>`(event: MonitoringEvent, `<br>`rule: MonitoringRule,`<br>`profile: MonitoringProfile):`<br>`RuleEvaluationResult` | Los parámetros `event`, `rule` y `profile` no deben ser nulos. | El evento ha sido evaluado mediante la estrategia correspondiente, aplicando la regla y el perfil de monitoreo proporcionados. Se devuelve un `RuleEvaluationResult` que indica si la condición definida por la regla se cumple y la razón del resultado. | Puede producir una excepción ante una falla técnica inesperada durante la evaluación. Cuando la condición definida por la regla no se cumple, el resultado de la evaluación se representa mediante `RuleEvaluationResult` y no mediante una excepción.|
+| `IConfirmationService.`<br>`ConfirmAsync`<br>`(event: MonitoringEvent, `<br>`rule: MonitoringRule, `<br>`evaluation: RuleEvaluationResult):`<br>`Task<ConfirmationResult>` | Los parámetros `event`, `rule` y `evaluation` no deben ser nulos. | Se aplican los criterios de confirmación definidos por la regla y, cuando corresponde, se consulta y actualiza el estado temporal asociado al adulto mayor, la regla y la versión del perfil evaluada. Se devuelve un `ConfirmationResult` que indica si la situación de riesgo ha sido confirmada y, cuando corresponde, incluye la razón del resultado y las referencias a los eventos que participaron en la confirmación. | Puede producir una excepción ante una falla técnica durante la consulta o actualización del estado temporal, ante una falla inesperada durante el proceso de confirmación o ante la cancelación de la operación. Una situación de riesgo no confirmada, una ventana aún pendiente o una ventana vencida se representan mediante `ConfirmationResult` y no mediante excepciones. |
+| `IConfirmationStateRepository.`<br>`GetAsync`<br>`(olderAdultId: Guid, ruleId: Guid, `<br>`profileVersion: int):`<br>`Task<ConfirmationState?>` | Los parámetros `olderAdultId` y `ruleId` deben ser identificadores válidos, y `profileVersion` debe representar una versión válida.| Se consulta la fuente de datos y se devuelve el `ConfirmationState` asociado al adulto mayor, la regla y la versión del perfil especificados. Si no existe un estado temporal pendiente, se devuelve `null`. | Puede producir una excepción ante una falla técnica durante el acceso al repositorio, ante la cancelación de la operación o ante una falla inesperada. La ausencia de un estado temporal pendiente se representa mediante `null` y no se considera una condición excepcional. |
+| `IConfirmationStateRepository.`<br>`SaveAsync`<br>`(state: ConfirmationState):`<br>`Task` | El parámetro `state` no debe ser nulo. | El `ConfirmationState` se almacena o actualiza de forma durable y queda disponible para continuar la evaluación en eventos posteriores o después de un reinicio del componente. | Puede producir una excepción ante una falla técnica durante la persistencia del estado, ante la cancelación de la operación o ante una falla inesperada. |
+| `IDeduplicationService.`<br>`IsDuplicateAsync`<br>`(eventId: Guid,`<br>`olderAdultId: Guid,`<br>`alertType: AlertType): Task<bool>` | Los parámetros `eventId`, `olderAdultId` deben ser identificadores válidos y `alertType` debe corresponder a un valor válido de `AlertType`. | Se verifica si el evento ya fue procesado o si existe una alerta activa equivalente para el mismo adulto mayor y tipo de alerta. Se devuelve `true` cuando se detecta un duplicado; en caso contrario, se devuelve `false`. | Puede producir una excepción ante una falla técnica durante la consulta de la información necesaria para determinar la existencia de un duplicado, ante la cancelación de la operación o ante una falla inesperada. La detección o ausencia de un duplicado se representa mediante el valor de retorno y no mediante excepciones. |
+| `IAlertRepository.`<br>`ExistsBySourceEventIdAsync`<br>`(eventId: Guid): Task<bool>` | El parámetro `eventId` debe ser un identificador válido. | Se devuelve `true` cuando existe una `Alert` que incluye el identificador del evento especificado entre sus eventos de origen; de lo contrario, se devuelve `false`. | Puede producir una excepción ante una falla técnica durante la consulta al repositorio, ante la cancelación de la operación o ante una falla inesperada. La ausencia de una alerta asociada se representa mediante el valor `false` y no mediante una excepción. |
+| `IAlertRepository.`<br>`ExistsActiveEquivalentAsync`<br>`(olderAdultId: Guid, `<br>`alertType: AlertType):`<br>`Task<bool>` | El parámetro `olderAdultId` debe ser un identificador válido y `alertType` debe corresponder a un valor válido de `AlertType`. | Se devuelve `true` cuando existe una `Alert` activa equivalente para el mismo adulto mayor y tipo de alerta, dentro del período de deduplicación aplicable; de lo contrario, se devuelve `false`. | Puede producir una excepción ante una falla técnica durante la consulta al repositorio, ante la cancelación de la operación o ante una falla inesperada. La ausencia de una alerta activa equivalente se representa mediante el valor `false` y no mediante una excepción. |
+| `IAlertRepository.SaveAsync`<br>`(alert: Alert): Task` | El parámetro `alert` no debe ser nulo. | La `Alert` se almacena de forma durable y queda disponible para su consulta, deduplicación y publicación. | Puede producir una excepción ante una falla técnica durante la persistencia de la alerta, ante la cancelación de la operación o ante una falla inesperada.|
+| `IAlertPublisher.PublishAsync`<br>`(alert: Alert): Task` | El parámetro `alert` no debe ser nulo. | La alerta se entrega al mecanismo de publicación configurado y se solicita su publicación hacia el Bus de Mensajería. | Puede producir una excepción ante una falla técnica durante la preparación o publicación de la alerta, ante la cancelación de la operación o ante una falla inesperada. |
 
 #### 10.1.3 Análisis de robustez
 
@@ -837,41 +1525,838 @@ El análisis de robustez permite verificar que el diseño del Motor de Reglas co
 
 | Objeto | Tipo | Responsabilidad |
 |---|---|---|
-| EventMessageConsumer          | Boundary | Recibir los mensajes provenientes del Bus de Mensajería, transformarlos en objetos `MonitoringEvent` y delegar su procesamiento mediante `IRuleProcessingService`.                |
-| AzureServiceBusAlertPublisher | Boundary | Convertir las alertas generadas al formato requerido por el Bus de Mensajería y publicarlas.                                                                                                                 |
-| IMonitoringProfileRepository  | Boundary | Proporcionar acceso a la fuente de datos para consultar el perfil de monitoreo asociado al adulto mayor.                                                                          |
-| IMonitoringRuleRepository     | Boundary | Proporcionar acceso a las reglas activas que deben aplicarse durante la evaluación del evento.                                                                                    |
-| IAlertRepository              | Boundary | Proporcionar las operaciones necesarias para almacenar las alertas generadas por el componente.                                                                                   |
-| RuleProcessingService         | Control  | Coordinar el flujo completo de procesamiento, incluyendo validación, consulta de datos, evaluación de reglas, confirmación, deduplicación, persistencia y publicación de alertas. |
-| EventValidator                | Control  | Verificar que el evento recibido contenga la información mínima y válida requerida para continuar con el procesamiento.                                                           |
-| RuleEvaluatorFactory          | Control  | Seleccionar la estrategia de evaluación correspondiente según el tipo de regla configurada.                                                                                       |
-| FallRuleEvaluator             | Control  | Evaluar las reglas relacionadas con posibles caídas.                                                                                                                              |
-| InactivityRuleEvaluator       | Control  | Evaluar las reglas asociadas con periodos de inactividad.                                                                                                                         |
-| SafeZoneRuleEvaluator         | Control  | Evaluar si el adulto mayor se encuentra fuera de la zona segura configurada.                                                                                                      |
-| ConfirmationService           | Control  | Aplicar los criterios de confirmación establecidos para validar una situación de riesgo antes de generar una alerta.                                                                                          |
-| DeduplicationService          | Control  | Verificar si el evento o la alerta ya fueron procesados para evitar la generación de alertas duplicadas.                                                                                          |
-| IRuleEvaluator                | Control  | Evaluar un evento de acuerdo con una regla específica y generar el resultado correspondiente, indicando si se identificó una situación de riesgo y su nivel de criticidad.                                                                                          |
-| MonitoringEvent               | Entity   | Representar el evento de monitoreo recibido, incluyendo su identificador, tipo, fecha de ocurrencia y adulto mayor asociado.                                                      |
-| MonitoringProfile             | Entity   | Representar la configuración y los parámetros de monitoreo individuales del adulto mayor utilizados durante la evaluación de los eventos.                                                                                                           |
-| MonitoringRule                | Entity   | Representar las reglas configurables y las condiciones utilizadas para evaluar los eventos de monitoreo.                                                                            |
-| Alert                         | Entity   | Representar una alerta generada por el componente, incluyendo la información necesaria para su almacenamiento y publicación.                                                                        |
-| ProcessingResult              | Entity   | Representar el resultado del procesamiento de un evento, indicando el estado final de la operación.                                                                                                                      |
-| RuleEvaluationResult          | Entity   | Representar el resultado de la evaluación de una regla, indicando si se detectó una situación de riesgo y su nivel de criticidad.                                                                 |
-| ConfirmationResult            | Entity   | Representar el resultado del proceso de confirmación de una situación de riesgo, indicando si debe generarse una alerta.                                                                                                  |
-| EventValidationResult         | Entity   | Representar el resultado de la validación del evento recibido, indicando si cumple las condiciones necesarias para continuar su procesamiento.                                                                                                          |
+| EventMessageConsumer          | Boundary | Recibir los mensajes provenientes del Bus de Mensajería, transformarlos en objetos `MonitoringEvent` y delegar su procesamiento mediante `IRuleProcessingService`.       |
+| IAlertPublisher               | Boundary | Definir el contrato para publicar las alertas confirmadas mediante el mecanismo de mensajería configurado, independientemente de la tecnología concreta utilizada. |
+| IMonitoringProfileRepository  | Boundary | Proporcionar acceso al perfil de monitoreo aplicable al adulto mayor según el momento de recepción del evento. |
+| IMonitoringRuleRepository     | Boundary | Proporcionar acceso a las reglas activas aplicables al perfil, su versión y el tipo de evento recibido |
+| IAlertRepository              | Boundary | Proporcionar acceso a las alertas existentes para apoyar la deduplicación y almacenar las alertas generadas por el componente. |
+| IConfirmationStateRepository  | Boundary | Proporcionar acceso persistente al estado temporal utilizado para correlacionar eventos, mantener y actualizar las ventanas de confirmación y recuperar evaluaciones pendientes después de un reinicio. |
+| RuleProcessingService         | Control  | Coordinar el flujo completo de procesamiento, incluyendo la recuperación del perfil de monitoreo aplicable y de las reglas correspondientes, evaluación, confirmación, deduplicación, generación, persistencia y publicación de alertas. |
+| EventValidator                | Control  | Verificar que el evento recibido contenga la información mínima y válida requerida para continuar con el procesamiento. |
+| RuleEvaluatorFactory          | Control  | Seleccionar la estrategia de evaluación correspondiente según el tipo de regla configurada. |
+| FallRuleEvaluator             | Control  | Evaluar las reglas relacionadas con posibles caídas. |
+| InactivityRuleEvaluator       | Control  | Evaluar las reglas asociadas con periodos de inactividad. |
+| SafeZoneRuleEvaluator         | Control  | Evaluar si el adulto mayor se encuentra fuera de la zona segura configurada. |
+| ConfirmationService           | Control  | Aplicar los criterios de confirmación definidos por la regla, consultar y actualizar el estado temporal cuando corresponda y determinar si la condición de riesgo ha sido confirmada. |
+| DeduplicationService          | Control  | Verificar si el evento ya fue procesado o si existe una alerta equivalente para el mismo adulto mayor y tipo de alerta dentro del período de deduplicación aplicable, evitando alertas duplicadas. |
+| IRuleEvaluator                | Control  | Definir el contrato común para evaluar un evento según una regla y devolver el resultado normalizado de la evaluación. |
+| MonitoringEvent               | Entity   | Representar el evento de monitoreo recibido, incluyendo su identificador, tipo, fechas de ocurrencia y recepción, información del adulto mayor asociado y los datos necesarios para su evaluación. |
+| MonitoringProfile             | Entity   | Representar la configuración de monitoreo correspondiente al adulto mayor y a una versión específica del perfil. |
+| MonitoringRule                | Entity   | Representar las reglas configurables y las condiciones utilizadas para evaluar los eventos de monitoreo. |
+| Alert                         | Entity   | Representar una alerta generada por el componente, incluyendo la regla y la versión del perfil aplicadas, los eventos que originaron su confirmación y la información necesaria para su almacenamiento y publicación. |
+| ConfirmationState             | Entity   | Representar el estado temporal persistente de una evaluación para un adulto mayor, una regla y una versión específica del perfil, incluyendo la ventana de confirmación, el último evento relacionado, los identificadores y la cantidad de eventos coincidentes, y el estado actual del proceso.  |
 
 #### 10.1.4 Diagrama de secuencia — flujo principal
 
-El siguiente diagrama de secuencia representa el flujo principal de la interacción entre los principales objetos del componente Motor de Reglas, desde la recepción del evento hasta la generación, almacenamiento y publicación de una alerta cuando se detecta una situación de riesgo. El componente obtiene el perfil de monitoreo y las reglas activas asociadas, evalúa el evento mediante la estrategia correspondiente, confirma la situación detectada y verifica que no exista un procesamiento duplicado. Finalmente, genera la alerta, la almacena y la publica en el Bus de Mensajería.
+El siguiente diagrama de secuencia representa el flujo principal de la interacción entre los principales objetos del componente Motor de Reglas, desde la recepción del evento hasta la generación, almacenamiento y publicación de una alerta cuando se detecta una situación de riesgo. El componente recupera el perfil de monitoreo aplicable según el momento de recepción del evento y las reglas activas asociadas a dicha versión, evalúa el evento mediante la estrategia correspondiente y aplica los criterios de confirmación definidos. Cuando la regla lo requiere, consulta y actualiza el estado temporal de confirmación para correlacionar eventos relacionados y determinar si la condición de riesgo ha sido confirmada. Posteriormente, verifica que no exista un procesamiento duplicado y, cuando corresponde, genera la alerta a partir de la regla confirmada y de los eventos que participaron en la confirmación, la almacena y la publica en el Bus de Mensajería.
 
-![Secuencia — Componente 1, flujo principal](../diagramas/secuencia-comp1-principal.png)
-*Figura 4 — Secuencia: Procesamiento de un evento con generación de alerta*
-> Para visualizar el diagrama con mayor nivel de detalle, consulte el archivo [secuencia-comp1-principal.png](../diagramas/secuencia-comp1-principal.png).
+![Secuencia — Componente 1, flujo principal](../diagramas/componente1/secuencia-comp1-principal.png)
+*Figura 11 — Secuencia: Procesamiento de un evento con generación de alerta*
+> **Imagen en tamaño completo:** [`secuencia-comp1-principal.png`](../diagramas/componente1/secuencia-comp1-principal.png) · **Fuente editable:** [`secuencia-comp1-principal.mmd`](../diagramas/componente1/secuencia-comp1-principal.mmd)
 
-El siguiente diagrama de secuencia representa un camino de error en el que el evento recibido no cumple las condiciones mínimas requeridas para su procesamiento. Después de la validación inicial, el Motor de Reglas detiene el flujo y devuelve un resultado no exitoso, sin consultar el perfil de monitoreo, recuperar reglas, evaluar condiciones ni generar una alerta.
+El siguiente diagrama de secuencia representa un camino de error significativo en el que ocurre una falla técnica durante la persistencia del estado temporal de confirmación. El evento ha superado la validación, se han recuperado la versión correspondiente del perfil y las reglas aplicables, y la evaluación ha determinado que la condición requiere confirmación. Sin embargo, al intentar almacenar o actualizar el ConfirmationState, el repositorio produce una excepción. El procesamiento se detiene antes de verificar duplicados, generar, almacenar o publicar una alerta. Como el consumidor no confirma el mensaje al Bus de Mensajería, este permanece disponible para su reentrega mediante el mecanismo de reintentos de la infraestructura de mensajería.
 
-![Secuencia — Componente 1, camino de error](../diagramas/secuencia-comp1-error.png)
-*Figura 5 — Secuencia: Evento inválido durante el procesamiento*
-> Para visualizar el diagrama con mayor nivel de detalle, consulte el archivo [secuencia-comp1-error.png](../diagramas/secuencia-comp1-error.png).
+![Secuencia — Componente 1, camino de error](../diagramas/componente1/secuencia-comp1-error.png)
+*Figura 12 — Secuencia: Falla al persistir el estado temporal de confirmación*
+> **Imagen en tamaño completo:** [`secuencia-comp1-error.png`](../diagramas/componente1/secuencia-comp1-error.png) · **Fuente editable:** [`secuencia-comp1-error.mmd`](../diagramas/componente1/secuencia-comp1-error.mmd)
+
 ---
+
+### 10.2 Componente 2 — Servicio de Notificaciones
+
+**Responsabilidad:** Garantizar que las alertas confirmadas lleguen oportunamente a los familiares y cuidadores mediante los canales de comunicación configurados, gestionando la selección de destinatarios, la determinación de la política de entrega, la ejecución de la estrategia de notificación correspondiente, la comunicación con los proveedores externos y el registro del resultado de cada intento de notificación.
+
+**Trazabilidad:** Soporta los casos de uso definidos en la Sección 1.4 relacionados con Recibir alertas de emergencia en tiempo real y Configurar preferencias de notificación. Asimismo, implementa los requerimientos funcionales RF-03 (Notificación de situaciones de riesgo) y RF-05 (Configuración y entrega de notificaciones). En la Vista de estructura interna presentada en la Sección 7.2, corresponde al Contenedor 6 – Servicio de Notificaciones, responsable de consumir las alertas confirmadas desde el Bus de Mensajería, resolver los destinatarios y canales de comunicación configurados, determinar la política de entrega aplicable según la severidad de la alerta y la configuración del perfil, ejecutar la estrategia de notificación correspondiente, enviarlas mediante los proveedores externos adecuados y registrar el resultado de cada intento de entrega.
+
+#### 10.2.1 Diagrama de clases de diseño
+
+El siguiente diagrama presenta el diseño interno del componente Servicio de Notificaciones. Se muestran las principales clases, interfaces y relaciones de colaboración que lo conforman, así como la aplicación de los patrones de diseño Strategy, Factory, Repository y Adapter para desacoplar las responsabilidades del componente, permitir la aplicación de diferentes políticas de entrega según el contexto de la alerta, facilitar la incorporación de nuevos canales y proveedores de notificación, y favorecer su mantenibilidad y extensibilidad.
+
+El diseño se organiza alrededor de `NotificationProcessingService`, responsable de coordinar el flujo completo de procesamiento de una alerta confirmada. El procesamiento inicia en `AlertMessageConsumer`, que recibe las alertas desde el Bus de Mensajería y delega su procesamiento mediante la interfaz `INotificationProcessingService`. A partir de este punto, `NotificationProcessingService` coordina la recuperación de la configuración de notificación correspondiente a la versión del perfil asociada a la alerta, verifica el estado previo del procesamiento para garantizar la idempotencia, determina los destinatarios y canales aplicables mediante `ChannelSelectionService`, resuelve la estrategia de entrega más adecuada considerando la severidad de la alerta y la configuración del perfil mediante `DeliveryPolicyResolver`, delega la ejecución de los envíos a la estrategia correspondiente (`IChannelDeliveryStrategy`), la cual utiliza `NotificationAdapterFactory` para seleccionar los adaptadores apropiados y comunicarse con los proveedores externos. Finalmente, registra de forma durable el estado de cada notificación y sus intentos de entrega, y devuelve el resultado global del procesamiento al consumidor.
+
+![Diagrama de clases — Componente 2](../diagramas/componente2/clases-componente2.png)
+*Figura 13 — Diagrama de clases de diseño: Servicio de Notificaciones*
+> **Imagen en tamaño completo:** [`clases-componente2.png`](../diagramas/componente2/clases-componente2.png) · **Fuente editable:** [`clases-componente2.mmd`](../diagramas/componente2/clases-componente2.mmd)
+
+#### 10.2.2 Contratos de interfaz
+
+| Método / Endpoint | Precondición | Postcondición | Excepciones |
+|---|---|---|---|
+| `AlertMessageConsumer.`<br>`HandleAsync`<br>`(message): Task` | `message` no debe ser nulo y debe contener una alerta confirmada serializada en el formato esperado, incluyendo los identificadores necesarios para su trazabilidad. El consumidor debe disponer de una implementación válida de `INotificationProcessingService`. | El mensaje se transforma en un objeto `Alert` y se delega su procesamiento mediante `ProcessAsync(alert)` en `INotificationProcessingService`. Si el resultado indica **ShouldAcknowledgeMessage = true**, el mensaje se confirma al Bus. Si indica **false**, el mensaje no se confirma, permitiendo su reentrega conforme a la política configurada. | Puede producir una excepción cuando el mensaje no puede deserializarse o mapearse a una alerta válida, cuando se cancela la operación o cuando ocurre una falla técnica inesperada durante el procesamiento o la comunicación con el Bus. |
+| `INotificationProcessingService.`<br>`ProcessAsync`<br>`(alert: Alert): Task`<br>`<NotificationProcessingResult>` | `alert` no debe ser nula y debe contener identificadores válidos de alerta y adulto mayor, una versión de perfil positiva, un tipo y severidad reconocidos y la información mínima necesaria para construir la notificación. | Se consulta la configuración correspondiente a `alert.OlderAdultId` y `alert.ProfileVersion`; se procesa cada destinatario configurado; se determinan los canales aplicables mediante `ChannelSelectionService`; se resuelve la estrategia de entrega correspondiente considerando la severidad de la alerta y la configuración del perfil mediante `DeliveryPolicyResolver`; se ejecutan los envíos utilizando dicha estrategia; se evita repetir una entrega ya completada; se registran de forma durable las entidades `Notification` y `NotificationAttempt` que correspondan; y se devuelve un `NotificationProcessingResult` que indica el estado global de la ejecución, si el mensaje debe confirmarse al Bus y, cuando corresponda, la razón del resultado. Las condiciones esperadas, como perfil inexistente, configuración inválida, alerta ya procesada o necesidad de reintento, se representan mediante el resultado y no mediante excepciones. | Puede producir una excepción ante una falla técnica inesperada al consultar o persistir información, cuando no es posible garantizar el registro durable del resultado, cuando se cancela la operación o ante una inconsistencia interna que impida completar el procesamiento de forma segura. |
+| `INotificationProfileRepository.`<br>`GetByOlderAdultIdAsync(`<br>`olderAdultId: Guid, `<br>`profileVersion: int):`<br>`Task<NotificationProfile?>` | `olderAdultId` debe ser un identificador válido y `profileVersion` debe ser mayor que cero. | Se consulta la fuente de datos y se devuelve la configuración de notificación asociada al adulto mayor y a la versión del perfil indicados, incluyendo los destinatarios, canales, prioridades, proveedores y la política de entrega configurada para el perfil. Si no existe una configuración correspondiente, se devuelve null; esta condición no se representa mediante una excepción. | Puede producir una excepción ante una falla técnica al consultar la fuente de datos, una inconsistencia al reconstruir la configuración almacenada o la cancelación de la operación. |
+| `INotificationTrackingRepository.`<br>`GetByAlertAndRecipientAsync(`<br>`alertId: Guid,recipientId: Guid):`<br>`Task<Notification?>`| `alertId` y `recipientId` deben ser identificadores válidos. | Se consulta la fuente de datos y se devuelve la Notification previamente registrada para la combinación de alerta y destinatario, incluyendo su estado actual y la información necesaria para determinar si el procesamiento debe continuar. Si no existe un registro previo, se devuelve null; esta condición no se representa mediante una excepción. | Puede producir una excepción ante una falla técnica al consultar la fuente de datos, una inconsistencia al reconstruir la información persistida o la cancelación de la operación. |
+| `ChannelSelectionService.`<br>`SelectApplicableChannels(`<br>`alert: Alert,`<br>`profile: NotificationProfile,`<br>`recipient: NotificationRecipient)`<br>`: NotificationChannelCollection` | `alert`, `profile` y `recipient` no deben ser nulos. El perfil debe corresponder al adulto mayor y a la versión asociada a la alerta. El destinatario debe corresponder a uno de los destinatarios definidos en `profile`. | Se devuelve una colección ordenada de configuraciones de canal aplicables para el destinatario, considerando el tipo y severidad de la alerta, la prioridad y el estado de los canales, los proveedores configurados, los datos de contacto disponibles y las restricciones definidas. La colección puede incluir múltiples configuraciones para un mismo tipo de canal cuando correspondan a distintos proveedores o niveles de prioridad. | Puede producir una excepción ante una configuración internamente inconsistente que impida evaluar los canales o ante una falla técnica inesperada durante la operación. |
+| `DeliveryPolicyResolver.`<br>`ResolveStrategy(`<br>`alert: Alert,`<br>`profile: NotificationProfile)`<br>`: IChannelDeliveryStrategy` | `alert` y `profile` no deben ser nulos. El perfil debe corresponder al adulto mayor y a la versión indicada en la alerta. | Se devuelve una implementación de `IChannelDeliveryStrategy` compatible con la severidad de la alerta y la política de entrega configurada para el perfil. | Puede producir una excepción únicamente cuando existe una inconsistencia de configuración que impide determinar una estrategia válida o ante una falla técnica inesperada durante la resolución. |
+| `NotificationAdapterFactory.`<br>`Create(`<br>`channelType: NotificationChannelType,`<br>`providerId: string)`<br>`: INotificationAdapter` | `channelType` debe corresponder a un valor válido de `NotificationChannelType` y `providerId` no debe ser nulo ni vacío. Debe existir un adaptador registrado capaz de atender la combinación indicada. | Se devuelve una implementación de `INotificationAdapter` compatible con el tipo de canal y el proveedor especificados. | Puede producir una excepción de configuración cuando no existe un adaptador compatible o cuando la configuración resulta ambigua porque más de un adaptador atiende la misma combinación. También puede producir una excepción ante una falla técnica inesperada durante la resolución de dependencias. |
+| `IChannelDeliveryStrategy.`<br>`ExecuteAsync(`<br>`alert: Alert,`<br>`recipient: NotificationRecipient,`<br>`channels: NotificationChannelCollection)`<br>`: Task`<br>`<ChannelDeliveryResultCollection>` | `alert`, `recipient` y `channels` no deben ser nulos. La colección de canales debe contener únicamente configuraciones aplicables al destinatario y a la alerta. | Se ejecuta la política de entrega implementada por la estrategia utilizando los canales proporcionados y se devuelve un `ChannelDeliveryResultCollection` con el resultado normalizado de los intentos de entrega realizados por la estrategia. Los resultados esperados de los proveedores se representan mediante `ChannelDeliveryResultCollection` y no mediante excepciones. | Puede producir una excepción únicamente cuando ocurre una falla técnica inesperada que impide ejecutar la estrategia o completar el procesamiento. |
+| `INotificationAdapter.`<br>`Supports(`<br>`channelType: NotificationChannelType,`<br>`providerId: string)`<br>`: bool` | `channelType` debe corresponder a un valor válido de `NotificationChannelType` y `providerId` no debe ser nulo ni vacío. | Se devuelve `true` cuando el adaptador puede atender la combinación de tipo de canal y proveedor especificados; en caso contrario, se devuelve `false`. | Puede producir una excepción únicamente ante una falla técnica inesperada al evaluar la configuración interna del adaptador. |
+| `INotificationAdapter.`<br>`SendAsync(`<br>`alert: Alert,`<br>`recipient: NotificationRecipient,`<br>`channel: NotificationChannel)`<br>`: Task<AdapterSendResult>` | `alert`, `recipient` y `channel` no deben ser nulos. El adaptador debe ser compatible con el tipo de canal y el proveedor especificados en `channel`. El destinatario debe disponer de la información de contacto requerida para el canal seleccionado. | Se realiza el intento de envío mediante el proveedor externo y se devuelve un `AdapterSendResult` normalizado, incluyendo el estado de entrega y, cuando corresponda, el identificador externo y la información de la falla. Los resultados esperados del proveedor se representan mediante `AdapterSendResult` y no mediante excepciones. | Puede producir una excepción únicamente cuando ocurre una falla técnica inesperada que impide completar la comunicación con el proveedor o la ejecución del adaptador. |
+| `INotificationTrackingRepository.`<br>`SaveAttemptAsync(`<br>`attempt: NotificationAttempt)`<br>`: Task` | `attempt` no debe ser nulo y debe estar asociado a una `Notification` y a un canal válidos. Debe incluir la fecha del intento, el proveedor utilizado, el estado de entrega y la información de correlación requerida. | Se registra de forma durable un nuevo `NotificationAttempt` asociado a la notificación, preservando el historial completo de intentos de entrega sin reemplazar los registros anteriores, independientemente de que el envío haya sido exitoso o fallido. | Puede producir una excepción ante una falla técnica durante la persistencia, una violación de integridad referencial, datos incompatibles con el modelo almacenado, la imposibilidad de garantizar la escritura durable o la cancelación de la operación. |
+| `INotificationTrackingRepository.`<br>`SaveNotificationAsync(`<br>`notification: Notification):`<br>`Task` | `notification` no debe ser nula y debe contener una asociación válida con una alerta y un destinatario. Su estado debe representar un valor válido de `NotificationStatus`. | La entidad `Notification` se crea o actualiza de forma durable en la fuente de datos, preservando el estado actual del proceso de notificación, sus fechas relevantes y la información necesaria para su seguimiento. | Puede producir una excepción ante una falla técnica durante la persistencia, una violación de restricciones de integridad de los datos, la imposibilidad de garantizar la escritura durable o la cancelación de la operación. |
+
+#### 10.2.3 Análisis de robustez
+
+| Objeto | Tipo | Responsabilidad |
+|---|---|---|
+| `AlertMessageConsumer`            | Boundary | Recibir desde el Bus de Mensajería las alertas confirmadas, transformarlas en objetos `Alert` y delegar su procesamiento mediante `INotificationProcessingService`. |
+| `INotificationProfileRepository`  | Boundary | Proporcionar acceso a la configuración de notificación asociada al perfil del adulto mayor, incluyendo destinatarios, datos de contacto, canales habilitados, prioridades, proveedores y la política de entrega configurada. |
+| `INotificationTrackingRepository` | Boundary | Proporcionar acceso persistente al estado global de las notificaciones y a sus intentos de entrega, permitiendo consultar procesamientos previos, almacenar o actualizar una `Notification` y registrar cada `NotificationAttempt`. |
+| `INotificationAdapter`            | Boundary | Definir la interfaz común para enviar una notificación mediante un proveedor externo y devolver un resultado normalizado, independientemente del contrato particular del proveedor. |
+| `NotificationProcessingService`   | Control  | Coordinar el procesamiento completo de una alerta confirmada, verificando su idempotencia, obteniendo la configuración de notificación, resolviendo los destinatarios y canales aplicables, determinando la estrategia de entrega correspondiente según la severidad de la alerta y la configuración del perfil, delegando la ejecución de los envíos a dicha estrategia y registrando de forma durable el estado de las notificaciones y sus intentos de entrega. |
+| `ChannelSelectionService`         | Control  | Determinar los canales de comunicación aplicables según el tipo y severidad de la alerta, las preferencias y prioridades definidas, los proveedores configurados, los datos de contacto disponibles y las restricciones de cada canal. |
+| `DeliveryPolicyResolver` | Control | Determinar la estrategia de entrega aplicable considerando la severidad de la alerta y la política de entrega configurada para el perfil del adulto mayor. |
+| `PriorityFallbackDeliveryStrategy` | Control | Ejecutar la entrega de la notificación utilizando los canales aplicables en orden de prioridad, recurriendo al siguiente canal únicamente cuando el intento anterior no resulte exitoso. |
+| `ParallelDeliveryStrategy` | Control | Ejecutar la entrega de la notificación utilizando simultáneamente todos los canales aplicables definidos para el destinatario. |
+| `NotificationAdapterFactory`      | Control  | Resolver una implementación de `INotificationAdapter` compatible con el canal y proveedor especificados para ser utilizada por la estrategia de entrega. |
+| `Alert`                           | Entity   | Representar la alerta confirmada recibida desde el Motor de Reglas, incluyendo su identificador, adulto mayor asociado, tipo, severidad y la información necesaria para generar la notificación. |
+| `NotificationProfile`             | Entity   | Representar la configuración de notificación asociada al adulto mayor, incluyendo destinatarios, canales disponibles, prioridades, proveedores habilitados y la política de entrega configurada. |
+| `Notification`                    | Entity   | Representar una notificación asociada a una alerta y un destinatario, incluyendo su estado actual, las fechas relevantes y la información necesaria para realizar el seguimiento completo de su ciclo de vida. |
+| `NotificationAttempt`             | Entity   | Representar un intento individual de entrega mediante un canal y proveedor determinados, incluyendo la fecha, el resultado, la clasificación de la falla y la información necesaria para su trazabilidad. |
+
+#### 10.2.4 Diagrama de secuencia — flujo principal
+
+El siguiente diagrama de secuencia representa el flujo principal de interacción entre los objetos del componente Servicio de Notificaciones para el procesamiento de una alerta crítica, desde la recepción de una alerta confirmada hasta la confirmación del mensaje en el Bus de Mensajería. El componente recupera la configuración de notificación correspondiente al perfil del adulto mayor, verifica si la notificación ya fue procesada para evitar duplicados, determina los canales aplicables para cada destinatario y resuelve la estrategia de entrega correspondiente. En este escenario se utiliza una estrategia de envío paralelo, registrando posteriormente los intentos de entrega, actualizando el estado de la notificación y devolviendo el resultado del procesamiento al consumidor.
+
+![Secuencia — Componente 2, flujo principal](../diagramas/componente2/secuencia-comp2-principal.png)
+*Figura 14 — Secuencia: Procesamiento de una alerta con entrega de notificación*
+> **Imagen en tamaño completo:** [`secuencia-comp2-principal.png`](../diagramas/componente2/secuencia-comp2-principal.png) · **Fuente editable:** [`secuencia-comp2-principal.mmd`](../diagramas/componente2/secuencia-comp2-principal.mmd)
+
+El siguiente diagrama de secuencia representa un camino de error en el que ocurre una falla transitoria durante el envío de una notificación. El componente determina la estrategia de entrega aplicable, ejecuta el envío mediante el proveedor correspondiente y registra de forma durable el intento realizado. Al no completarse exitosamente la entrega, la notificación se actualiza al estado PendingRetry y el resultado del procesamiento indica que el mensaje no debe confirmarse al Bus de Mensajería, permitiendo su posterior reentrega conforme a la política de mensajería.
+
+![Secuencia — Componente 2, camino de error](../diagramas/componente2/secuencia-comp2-error.png)
+*Figura 15 — Secuencia: Falla transitoria en el envío mediante el único canal disponible*
+> **Imagen en tamaño completo:** [`secuencia-comp2-error.png`](../diagramas/componente2/secuencia-comp2-error.png) · **Fuente editable:** [`secuencia-comp2-error.mmd`](../diagramas/componente2/secuencia-comp2-error.mmd)
+
+---
+
+### 10.3 Componente 3 – Servicio de Ingesta de Eventos
+
+**Responsabilidad:** Garantizar la recepción confiable de los eventos provenientes de fuentes simuladas o de dispositivos wearable, mediante la autenticación del emisor, la validación técnica del evento, la detección de duplicados, su aceptación durable mediante persistencia y la preparación para su publicación asíncrona hacia el Bus de Mensajería, preservando la integridad y disponibilidad de la información para su posterior procesamiento.
+
+**Trazabilidad:** Soporta los casos de uso definidos en la Sección 1.4 relacionados con la recepción de eventos provenientes de las fuentes de monitoreo del adulto mayor. Asimismo, implementa el requerimiento funcional RF-01 (Recepción y conservación de eventos) y contribuye al cumplimiento de los atributos de calidad relacionados con la disponibilidad, resiliencia y procesamiento asíncrono de eventos. En la Vista de estructura interna presentada en la Sección 7.2, corresponde al Contenedor 3 – Servicio de Ingesta de Eventos, responsable de autenticar el emisor, validar técnicamente los eventos recibidos, garantizar su aceptación durable y publicarlos de forma asíncrona hacia el Bus de Mensajería para su posterior procesamiento.
+ 
+#### 10.3.1 Diagrama de clases de diseño
+
+El siguiente diagrama presenta el diseño interno del componente Servicio de Ingesta de Eventos y las principales clases, interfaces y relaciones que permiten autenticar y validar los eventos recibidos, garantizar su aceptación durable e idempotente y desacoplar su persistencia de la publicación al Bus de Mensajería mediante el patrón Transactional Outbox.
+
+El diseño se organiza alrededor de `EventIngestionService`, que coordina la validación y persistencia atómica del `MonitoringEvent` y su `OutboxMessage`. La publicación se realiza posteriormente mediante `OutboxPublisher`, que procesa los mensajes pendientes y utiliza `IEventPublisher` para enviarlos al Bus de Mensajería, preservando los eventos incluso ante posibles fallos temporales en la publicación.
+
+![Diagrama de clases — Componente 3](../diagramas/componente3/clases-componente3.png)
+*Figura 16 — Diagrama de clases de diseño: Servicio de Ingesta de Eventos*
+> **Imagen en tamaño completo:** [`clases-componente3.png`](../diagramas/componente3/clases-componente3.png) · **Fuente editable:** [`clases-componente3.mmd`](../diagramas/componente3/clases-componente3.mmd)
+
+
+#### 10.3.2 Contratos de interfaz
+
+| Método / Endpoint | Precondición | Postcondición | Excepciones |
+|---|---|---|---|
+| `EventIngestionController.`<br>`ReceiveAsync(request):`<br>`Task<EventIngestionResult>` | `request` no debe ser nulo y debe provenir de una fuente de monitoreo capaz de presentar las credenciales requeridas por el componente. | Se autentica al emisor, se transforma la solicitud en un `MonitoringEvent`, registrando en `ReceivedAt` el momento de recepción del evento, y, cuando la autenticación es válida, se delega su aceptación mediante `IEventIngestionService`. Se devuelve un `EventIngestionResult` que indica si el evento fue aceptado, ya había sido aceptado, es inválido o el emisor no está autorizado. | Puede producir una excepción cuando la solicitud no puede interpretarse, ante una falla técnica inesperada durante la autenticación o el procesamiento, o cuando se cancela la operación. |
+| `IEventSourceAuthenticator.`<br>`AuthenticateAsync(request):`<br>`Task<EventSourceAuthenticationResult>` | `request` no debe ser nulo y debe contener la información de autenticación requerida para identificar al emisor. | Se verifica la identidad del emisor y se devuelve un `EventSourceAuthenticationResult` que indica si está autenticado y, cuando corresponde, identifica la fuente mediante `SourceId`. Una autenticación inválida se representa mediante el resultado y no mediante una excepción. | Puede producir una excepción ante una falla técnica inesperada en el mecanismo de autenticación o ante la cancelación de la operación. |
+| `IEventIngestionService.`<br>`AcceptAsync`<br>`(event: MonitoringEvent):`<br>`Task<EventIngestionResult>` | `event` no debe ser nulo y debe provenir de un emisor previamente autenticado. | Se valida técnicamente el evento y, si resulta válido, se genera su `OutboxMessage` y se solicita su aceptación durable. Si el `EventId` ya fue aceptado, se devuelve `AlreadyAccepted` sin crear un nuevo evento ni una nueva intención de publicación. Si la aceptación es exitosa, se devuelve `Accepted`. | Puede producir una excepción cuando ocurre una falla técnica que impide garantizar la aceptación durable, durante el acceso a persistencia o ante la cancelación de la operación. Los eventos inválidos o duplicados se representan mediante el resultado y no mediante excepciones. |
+| `IIngestionEventValidator.`<br>`Validate(event: MonitoringEvent):`<br>`EventValidationResult` | `event` no debe ser nulo. | Se verifica que el evento contenga la estructura, identificadores, formatos y valores técnicos mínimos requeridos para su aceptación. Se devuelve un `EventValidationResult` que indica si el evento puede continuar con el proceso de ingesta y, cuando corresponda, la razón de su rechazo. | Puede producir una excepción únicamente ante una falla técnica inesperada durante la validación. Un evento técnicamente inválido se representa mediante `EventValidationResult`. |
+| `IEventIngestionRepository.`<br>`AcceptAsync(event: MonitoringEvent,`<br>`outboxMessage: OutboxMessage):`<br>`Task<EventPersistenceResult>` | `event` y `outboxMessage` no deben ser nulos; `outboxMessage.EventId` debe corresponder a `event.EventId`. | El `MonitoringEvent` y su `OutboxMessage` se persisten **atómicamente en una misma transacción**. Si ambas escrituras se confirman, el evento se considera aceptado durablemente. Si `EventId` ya existe, no se crea un segundo evento ni un segundo mensaje de Outbox y se devuelve `AlreadyExists`. | Puede producir una excepción ante una falla técnica de persistencia, una violación de integridad distinta de la duplicidad esperada, la imposibilidad de completar la transacción de forma durable o la cancelación de la operación. |
+| `OutboxPublisher.`<br>`PublishPendingAsync(): Task` | No Aplica. | Se recuperan los mensajes pendientes y se intenta publicar cada uno. Las publicaciones aceptadas se marcan como `Published`; ante fallas recuperables se registra el intento y el mensaje permanece disponible para un nuevo intento. | Puede producir una excepción ante una falla técnica que impida continuar de forma segura con el procesamiento del Outbox o ante la cancelación de la operación. Una falla individual de publicación debe registrarse sin provocar la pérdida del mensaje pendiente.                  |
+| `IOutboxRepository.`<br>`GetPendingAsync():`<br>`Task<OutboxMessageCollection>` | No Aplica. | Se devuelve la colección de mensajes pendientes de publicación. Si no existen mensajes pendientes, se devuelve una colección vacía. | Puede producir una excepción ante una falla técnica de consulta o ante la cancelación de la operación. |
+| `IEventPublisher.`<br>`PublishAsync(`<br>`outboxMessage: OutboxMessage): Task` | `outboxMessage` no debe ser nulo, debe encontrarse pendiente de publicación y debe contener un `Payload` válido. | Se envía el contenido del mensaje al Bus de Mensajería. Si el Bus acepta la publicación, la operación concluye satisfactoriamente. | Puede producir una excepción cuando el Bus no está disponible, ocurre un timeout, se rechaza la publicación, existe una falla de comunicación o se cancela la operación. |
+
+#### 10.3.3 Análisis de robustez
+
+| Objeto | Tipo | Responsabilidad |
+|---|---|---|
+| `EventIngestionController`  | Boundary                           | Recibir las solicitudes provenientes de las fuentes de monitoreo, coordinar la autenticación del emisor, transformar la solicitud en un `MonitoringEvent` y delegar su aceptación mediante `IEventIngestionService`.                     |
+| `IEventSourceAuthenticator` | Boundary                           | Definir el contrato para autenticar la fuente emisora del evento y devolver un resultado normalizado de autenticación, independientemente del mecanismo concreto utilizado.                                                             |
+| `IEventIngestionRepository` | Boundary                           | Proporcionar acceso persistente para aceptar de forma durable un `MonitoringEvent`, almacenándolo atómicamente junto con su `OutboxMessage` y garantizando la idempotencia mediante la unicidad de `EventId`.                     |
+| `IOutboxRepository`         | Boundary                           | Proporcionar acceso persistente a los mensajes pendientes del Outbox y permitir actualizar su estado e información de seguimiento después de cada intento de publicación.                                                              |
+| `IEventPublisher`           | Boundary                           | Definir el contrato para publicar los mensajes pendientes hacia el Bus de Mensajería, aislando al componente de la tecnología concreta de mensajería utilizada.                                                                   |
+| `EventIngestionService`     | Control                            | Coordinar el proceso de aceptación del evento, incluyendo validación técnica, creación del `OutboxMessage`, solicitud de persistencia durable e interpretación del resultado de aceptación o duplicidad.                   |
+| `IngestionEventValidator`   | Control                            | Verificar que el evento recibido contenga la estructura, identificadores, formatos y valores técnicos mínimos requeridos para continuar con el proceso de ingesta.                                                                    |
+| `OutboxPublisher`           | Control                            | Coordinar el procesamiento de los mensajes pendientes del Outbox, solicitar su publicación al Bus de Mensajería y registrar el resultado de cada intento sin perder los mensajes ante fallos temporales.                             |
+| `MonitoringEvent`           | Entity                             | Representar el evento de monitoreo aceptado por el componente, incluyendo su identificador, fuente, adulto mayor asociado, tipo, fechas e información necesaria para su trazabilidad y posterior procesamiento. |
+| `OutboxMessage`             | Entity                             | Representar la intención durable de publicar un evento, incluyendo su identificador, referencia al evento, payload, estado de publicación, fechas e información de seguimiento de los intentos realizados.                         |
+
+#### 10.3.4 Diagrama de secuencia — flujo principal
+
+El siguiente diagrama de secuencia representa el flujo principal del Servicio de Ingesta de Eventos, desde la recepción de un evento proveniente de una fuente de monitoreo hasta su aceptación durable y posterior publicación en el Bus de Mensajería. El componente autentica al emisor, valida técnicamente el evento y persiste atómicamente el MonitoringEvent junto con su OutboxMessage. Posteriormente, OutboxPublisher recupera el mensaje pendiente y gestiona su publicación al Bus, actualizando su estado cuando la publicación se completa satisfactoriamente.
+
+![Secuencia — Componente 3, flujo principal](../diagramas/componente3/secuencia-comp3-principal.png)
+*Figura 17 — Secuencia: Aceptación durable y publicación de un evento de monitoreo*
+> **Imagen en tamaño completo:** [`secuencia-comp3-principal.png`](../diagramas/componente3/secuencia-comp3-principal.png) · **Fuente editable:** [`secuencia-comp3-principal.mmd`](../diagramas/componente3/secuencia-comp3-principal.mmd)
+
+El siguiente diagrama de secuencia representa un camino de error en el que ocurre una falla transitoria durante la publicación de un evento previamente aceptado de forma durable. El MonitoringEvent y su OutboxMessage permanecen persistidos, mientras OutboxPublisher registra la falla y mantiene el mensaje disponible para un intento posterior. De esta forma, una indisponibilidad temporal del Bus de Mensajería no provoca la pérdida del evento ni afecta su aceptación previa.
+
+![Secuencia — Componente 3, camino de error](../diagramas/componente3/secuencia-comp3-error.png)
+*Figura 18 — Secuencia: Falla transitoria durante la publicación de un evento*
+> **Imagen en tamaño completo:** [`secuencia-comp3-error.png`](../diagramas/componente3/secuencia-comp3-error.png) · **Fuente editable:** [`secuencia-comp3-error.mmd`](../diagramas/componente3/secuencia-comp3-error.mmd)
+
+--- 
+
+### 10.4 Componente 4 – API de Aplicación: Gestión de Configuración de Perfiles
+
+> Para efectos de este diseño detallado, el alcance se limita a la gestión de la configuración de perfiles y excluye las funcionalidades del mismo contenedor relacionadas con la autenticación y autorización de usuarios, las consultas de estado e historial, la gestión de usuarios y cualquier otra operación de la API de Aplicación no asociada a la configuración versionada de perfiles.
+
+**Responsabilidad:** Administrar de forma consistente y versionada la configuración de perfiles de monitoreo utilizada por el Motor de Reglas y el Servicio de Notificaciones, incluyendo las reglas de detección, los destinatarios, los canales y las preferencias de notificación. El componente garantiza la validación, persistencia íntegra, trazabilidad de los cambios y publicación de cada modificación como una nueva versión, sin alterar configuraciones históricas, asegurando que el sistema disponga de la información necesaria para que las alertas puedan detectarse y notificarse de forma segura, oportuna y pertinente. 
+
+**Trazabilidad:** Soporta los casos de uso definidos en la Sección 1.4 relacionados con la gestión de perfiles de monitoreo, la configuración de reglas de detección y las preferencias de notificación. Asimismo, implementa los requerimientos funcionales RF-02 y RF-05 y contribuye directamente al cumplimiento del escenario QS-05 mediante el versionado, validación y publicación de configuraciones sin necesidad de recompilar ni redesplegar los componentes consumidores. En la Vista de estructura interna presentada en la Sección 7.2, corresponde principalmente al Contenedor 2 – API de Aplicación, responsable de exponer y ejecutar las operaciones de configuración, validación, versionado y persistencia. El Contenedor 1 – App Web actúa como interfaz de usuario desde la cual los usuarios autorizados consultan y modifican dicha configuración.
+ 
+#### 10.4.1 Diagrama de clases de diseño
+
+El siguiente diagrama presenta el diseño interno correspondiente a la Gestión de Configuración de Perfiles del componente API de Aplicación, incluyendo sus principales clases, interfaces y relaciones que permiten administrar de forma consistente y versionada los perfiles de monitoreo, las reglas de detección, los destinatarios, los canales y las preferencias de notificación, garantizando su validación, persistencia íntegra, trazabilidad de cambios y conservación de las versiones históricas.
+
+El diseño se organiza alrededor de `ProfileConfigurationService`, responsable de coordinar la recuperación de la versión activa, la creación de una nueva `ProfileConfigurationVersion`, su validación y persistencia. Cada versión agrupa de forma coherente las reglas, destinatarios, canales y preferencias correspondientes. Una nueva versión se activa únicamente cuando toda la configuración ha sido validada y persistida de forma atómica, mientras que las versiones previamente publicadas pasan a formar parte del historial de configuración y permanecen persistidas para garantizar la trazabilidad y auditoría de los cambios.
+
+![Diagrama de clases — Componente 4](../diagramas/componente4/clases-componente4.png)
+*Figura 19 — Diagrama de clases de diseño: Gestión de configuración de perfiles.*
+> **Imagen en tamaño completo:** [`clases-componente4.png`](../diagramas/componente4/clases-componente4.png) · **Fuente editable:** [`clases-componente4.mmd`](../diagramas/componente4/clases-componente4.mmd)
+
+#### 10.4.2 Contratos de interfaz
+
+| Método / Endpoint | Precondición | Postcondición | Excepciones |
+|---|---|---|---|
+| `ProfileConfigurationController.`<br>`PublishNewVersionAsync`<br>`(request, userContext):`<br>`Task<ProfileConfigurationResult>` | `request` no debe ser nulo y debe contener una solicitud válida de modificación de la configuración del perfil. `userContext` debe corresponder a un usuario autenticado y autorizado para modificar la configuración del adulto mayor indicado. | La solicitud se transforma en `ProfileConfigurationChanges` y se delega su procesamiento mediante `IProfileConfigurationService`. Se devuelve un `ProfileConfigurationResult` indicando si la nueva versión fue publicada o si la operación no pudo completarse por una condición esperada. | Puede producir una excepción cuando la solicitud no puede interpretarse, ante una falla técnica inesperada durante el procesamiento o cuando se cancela la operación. |
+| `IProfileConfigurationService.`<br>`PublishNewVersionAsync`<br>`(olderAdultId, changes, changedBy):`<br>`Task<ProfileConfigurationResult>` | `olderAdultId` y `changedBy` deben ser identificadores válidos y `changes` no debe ser nulo. El usuario debe estar autorizado para modificar la configuración indicada. | Si la configuración resulta válida, se crea y publica una nueva `ProfileConfigurationVersion` completa y consistente, que queda activa y asociada al registro de auditoría correspondiente. La versión anteriormente activa permanece persistida como parte del historial y no se modifica ni elimina. Se devuelve un `ProfileConfigurationResult` con el resultado de la operación. Las configuraciones inválidas no producen una nueva versión activa. | Puede producir una excepción ante una falla técnica al recuperar o persistir información, cuando no es posible completar la operación de forma atómica o cuando se cancela la operación. Las configuraciones inválidas se representan mediante `ProfileConfigurationResult` y no mediante excepciones. |
+| `IProfileConfigurationRepository.`<br>`GetActiveAsync(olderAdultId):`<br>`Task<ProfileConfigurationVersion?>` | `olderAdultId` debe ser un identificador válido. | Se devuelve la versión activa completa de la configuración del perfil, incluyendo el `MonitoringProfile`, sus reglas, el `NotificationProfile`, sus destinatarios, canales y preferencias. Si no existe una versión activa, se devuelve `null`. | Puede producir una excepción ante una falla técnica de consulta, una inconsistencia al reconstruir la configuración almacenada o la cancelación de la operación. |
+| `IProfileConfigurationValidator.`<br>`Validate(configuration):`<br>`ProfileConfigurationValidationResult` | `configuration` no debe ser nula. | Se valida la consistencia global de la nueva `ProfileConfigurationVersion`, incluyendo el `MonitoringProfile`, las reglas configuradas, el `NotificationProfile`, los destinatarios, los canales, las preferencias, verificando que la configuración contenga la información necesaria para ser utilizada correctamente por el Motor de Reglas y el Servicio de Notificaciones. Se devuelve un `ProfileConfigurationValidationResult` con el resultado y los errores encontrados, cuando corresponda. | Puede producir una excepción únicamente ante una falla técnica inesperada durante la validación. Una configuración inválida se representa mediante el resultado. |
+| `IProfileConfigurationRepository.`<br>`SaveAndActivateAsync`<br>`(configuration, auditEntry): Task` | `configuration` y `auditEntry` no deben ser nulos; la configuración debe haber sido validada y representar una nueva versión del perfil. | La nueva `ProfileConfigurationVersion`, el `MonitoringProfile`, el `NotificationProfile`, sus elementos asociados y el registro de auditoría se persisten de forma atómica. La nueva versión queda activa y la versión previamente activa pasa a formar parte del historial sin ser eliminada ni sobrescrita. | Puede producir una excepción ante una falla técnica de persistencia, una violación de integridad, la imposibilidad de completar la transacción de forma atómica o la cancelación de la operación. |
+                                                                                                           
+#### 10.4.3 Análisis de robustez
+
+| Objeto | Tipo | Responsabilidad |
+|---|---|---|
+| `ProfileConfigurationController`  | Boundary | Recibir desde la App Web las solicitudes de publicación de una nueva versión de configuración, transformar la solicitud en `ProfileConfigurationChanges` y delegar el procesamiento mediante `IProfileConfigurationService`. |
+| `IProfileConfigurationRepository` | Boundary | Proporcionar acceso persistente a la configuración versionada del perfil, permitiendo recuperar la versión activa y persistir de forma atómica la nueva versión de configuración y el registro de auditoría, actualizando el estado de las versiones almacenadas. |
+| `ProfileConfigurationService`     | Control  | Coordinar el proceso completo de publicación de una nueva versión, incluyendo la recuperación de la versión activa, la creación de la nueva `ProfileConfigurationVersion`, su validación, la generación del registro de auditoría y la persistencia y activación de la nueva versión. |
+| `ProfileConfigurationValidator`   | Control  | Validar la consistencia de la nueva versión de configuración, incluyendo el perfil de monitoreo, reglas, perfil de notificación, destinatarios, canales, preferencias y datos requeridos antes de su publicación. |
+| `ProfileConfigurationVersion`     | Entity   | Representar una versión completa, coherente y trazable de la configuración asociada a un adulto mayor, incluyendo la configuración utilizada por el Motor de Reglas y el Servicio de Notificaciones, permitiendo crear una nueva versión a partir de la configuración vigente y conservando el historial de versiones mediante el mecanismo de versionado.
+| `MonitoringProfile`               | Entity   | Representar la configuración de monitoreo correspondiente a una versión del perfil, agrupando las reglas de detección que serán utilizadas por el Motor de Reglas para evaluar los eventos recibidos. |
+| `MonitoringRule`                  | Entity   | Representar una regla de detección configurable asociada al perfil de monitoreo, incluyendo su tipo, severidad, parámetros y requisitos de confirmación. |
+| `NotificationProfile`             | Entity   | Representar la configuración de notificación correspondiente a una versión del perfil, agrupando los destinatarios, canales y preferencias utilizados por el Servicio de Notificaciones.                                                                                         |
+| `NotificationRecipient`           | Entity   | Representar un destinatario configurado para recibir alertas, incluyendo su relación con el adulto mayor, estado y datos de contacto disponibles.               |
+| `NotificationChannel`             | Entity   | Representar un canal habilitado para la entrega de alertas (SMS, Email, Push, etc.), incluyendo su tipo, prioridad, estado y configuración requerida para su utilización por el Servicio de Notificaciones. |
+| `NotificationPreference`          | Entity   | Representar las preferencias de notificación asociadas a una versión del perfil, incluyendo prioridades, horarios permitidos, severidad mínima y demás criterios utilizados por el Servicio de Notificaciones.                        |
+| `ConfigurationAuditEntry`         | Entity   | Representar el registro trazable de la publicación de una versión, incluyendo quién realizó el cambio, cuándo ocurrió, qué versión fue afectada y el identificador de correlación asociado. |
+
+#### 10.4.4 Diagrama de secuencia — flujo principal
+
+El siguiente diagrama de secuencia representa el flujo principal para publicar una nueva versión de configuración de perfil. El componente recupera la versión activa, construye en memoria una nueva `ProfileConfigurationVersion` a partir de los cambios solicitados, valida la consistencia de la configuración y, al ser válida, registra la información de auditoría y persiste de forma atómica la nueva versión junto con sus perfiles y elementos asociados. Como parte de la misma operación, la nueva versión queda activa y la anterior pasa a formar parte del historial, donde permanece persistida para fines de trazabilidad y auditoría.
+
+![Secuencia — Componente 4, flujo principal](../diagramas/componente4/secuencia-comp4-principal.png)
+*Figura 20 — Secuencia: Publicación exitosa de una nueva versión de configuración de perfil*
+> **Imagen en tamaño completo:** [`secuencia-comp4-principal.png`](../diagramas/componente4/secuencia-comp4-principal.png) · **Fuente editable:** [`secuencia-comp4-principal.mmd`](../diagramas/componente4/secuencia-comp4-principal.mmd)
+
+El siguiente diagrama de secuencia representa un camino de error en el que la nueva `ProfileConfigurationVersion` ha sido construida y validada correctamente, pero ocurre una falla técnica durante su persistencia y activación. Al tratarse de una operación transaccional, los cambios no se confirman y la transacción se revierte, por lo que la versión previamente activa permanece vigente y no se genera una configuración parcial. La falla se propaga como un error técnico y la nueva versión podrá volver a publicarse una vez recuperada la disponibilidad del almacenamiento.
+
+![Secuencia — Componente 4, camino de error](../diagramas/componente4/secuencia-comp4-error.png)
+*Figura 21 — Secuencia: Falla al persistir y activar una nueva versión de configuración*
+> **Imagen en tamaño completo:** [`secuencia-comp4-error.png`](../diagramas/componente4/secuencia-comp4-error.png) · **Fuente editable:** [`secuencia-comp4-error.mmd`](../diagramas/componente4/secuencia-comp4-error.mmd)
+
+---
+
+## 11. Patrones de diseño aplicados
+
+En el presente apartado se documentan los principales patrones de diseño aplicados en **SeniorCareHub**, correspondientes a decisiones arquitectónicas adoptadas durante el diseño detallado de los componentes presentados en la Sección 10. Se incluyen aquellos patrones cuya aplicación resuelve problemas específicos del sistema y puede evidenciarse directamente en el diseño de los componentes, sus contratos y sus diagramas de comportamiento, por constituir las decisiones de diseño más representativas de la solución propuesta.
+
+---
+
+### Patrón 1 — Transactional Outbox
+
+| Campo | Detalle |
+|---|---|
+| **Categoría** | Comportamiento |
+| **Ubicación en el sistema** | Componente 3 — Servicio de Ingesta de Eventos, Sección 10.3 |
+| **Problema que resuelve** | Evitar la pérdida de un `MonitoringEvent` aceptado y persistido correctamente por el Servicio de Ingesta debido a una falla temporal durante su publicación al Bus de Mensajería, impidiendo su procesamiento posterior por el Motor de Reglas. |
+| **Alternativa considerada** | Persistir el MonitoringEvent y publicarlo directamente al Bus de Mensajería de forma sincrónica dentro del mismo flujo de la solicitud, considerando completada la operación únicamente cuando ambas acciones finalizaran correctamente. Ante una falla durante la publicación, el servicio podría realizar reintentos inmediatos o devolver un error al emisor. |
+| **Por qué el patrón y no la alternativa** | Porque desacopla la aceptación del `MonitoringEvent` de su publicación al Bus de Mensajería. En SeniorCareHub, la pérdida de un evento de monitoreo no es aceptable, ya que podría impedir la detección oportuna de una situación crítica del adulto mayor. Al persistir atómicamente el evento junto con su `OutboxMessage`, la aceptación deja de depender de la disponibilidad inmediata del Bus. Si ocurre una falla temporal durante la publicación, el mensaje permanece persistido y puede ser publicado posteriormente por `OutboxPublisher`, evitando la pérdida del evento aceptado y permitiendo su recuperación automática sin requerir reintentos sincrónicos ni que el emisor vuelva a enviarlo. |
+
+![Aplicación del patrón Transactional Outbox en el Componente 3 — Servicio de Ingesta de Eventos](../diagramas/patrones/patron-transactional-outbox.png)
+*Figura 22 — Aplicación del patrón Transactional Outbox en Componente 3 — Servicio de Ingesta de Eventos*
+
+> **Imagen en tamaño completo:** [`patron-transactional-outbox.png`](../diagramas/patrones/patron-transactional-outbox.png) · **Fuente editable:** [`patron-transactional-outbox.mmd`](../diagramas/patrones/patron-transactional-outbox.mmd)
+
+---
+
+### Patrón 2 — Strategy
+
+| Campo | Detalle |
+|---|---|
+| **Categoría** | Comportamiento |
+| **Ubicación en el sistema** | Componente 2 — Servicio de Notificaciones, Sección 10.2 |
+| **Problema que resuelve**   | Permitir que el Servicio de Notificaciones aplique distintas políticas de entrega según la configuración del perfil y la severidad de la alerta, incluyendo el envío paralelo por múltiples canales o el intento secuencial por prioridad con fallback, sin incorporar cada algoritmo directamente en la lógica principal de procesamiento. Esto permite reducir la latencia asociada a intentos secuenciales cuando se trata de eventos críticos, favoreciendo una entrega oportuna. |
+| **Alternativa considerada** | Implementar una única estrategia de entrega secuencial para todas las notificaciones en `NotificationProcessingService`, intentando un canal a la vez y recurriendo al siguiente únicamente cuando el intento anterior falla, sin diferenciar entre distintos escenarios de entrega definidos por las preferencias de envío de cada perfil y la severidad de la alerta. |
+| **Por qué el patrón y no la alternativa** | El patrón permite seleccionar la política de entrega más adecuada según la severidad de la alerta y la configuración del perfil. En eventos críticos, una estrategia exclusivamente secuencial podría generar demoras adicionales si un canal falla antes de intentar el siguiente, afectando la entrega oportuna de la notificación. Strategy permite utilizar entrega paralela cuando el contexto lo requiere y mantener otras políticas como PriorityFallback para escenarios distintos, sin modificar la lógica principal de `NotificationProcessingService`. Además, desacopla las políticas de entrega del procesamiento de notificaciones, reduciendo el impacto de cambios futuros o de la incorporación de nuevas políticas de entrega. |
+
+![Aplicación del patrón Strategy en Componente 2 — Servicio de Notificaciones](../diagramas/patrones/patron-strategy.png)
+*Figura 23 — Aplicación del patrón Strategy en Componente 2 — Servicio de Notificaciones*
+> **Imagen en tamaño completo:** [`patron-strategy.png`](../diagramas/patrones/patron-strategy.png) · **Fuente editable:** [`patron-strategy.mmd`](../diagramas/patrones/patron-strategy.mmd)
+
+---
+
+### Patrón 3 — Factory
+
+| Campo | Detalle |
+|---|---|
+| **Categoría** | Creacional |
+| **Ubicación en el sistema** | Componente 2 — Servicio de Notificaciones, Sección 10.2 |
+| **Problema que resuelve**   | Seleccionar la implementación de `INotificationAdapter` adecuada según el canal y el proveedor configurados, evitando que las estrategias de entrega dependan de implementaciones concretas de adaptadores. |
+| **Alternativa considerada** | Incorporar la lógica necesaria en `ParallelDeliveryStrategy` y `PriorityFallbackDeliveryStrategy` para identificar e instanciar el adaptador correspondiente según el canal y proveedor requerido. |
+| **Por qué el patrón y no la alternativa** | El patrón centraliza la selección del adaptador apropiado en `NotificationAdapterFactory`, permitiendo que las estrategias de entrega trabajen únicamente con el contrato `INotificationAdapter`. Así, las estrategias permanecen desacopladas de las implementaciones concretas y la incorporación de nuevos canales, proveedores o adaptadores se limita a la Factory y al nuevo Adapter correspondiente, sin modificar la lógica de entrega existente y reduciendo el impacto de futuros cambios. |
+
+![Aplicación del patrón Factory en Componente 2 — Servicio de Notificaciones](../diagramas/patrones/patron-factory.png)
+*Figura 24 — Aplicación del patrón Factory en Componente 2 — Servicio de Notificaciones*
+> **Imagen en tamaño completo:** [`patron-factory.png`](../diagramas/patrones/patron-factory.png) · **Fuente editable:** [`patron-factory.mmd`](../diagramas/patrones/patron-factory.mmd)
+
+---
+
+### Patrón 4 — Adapter
+
+| Campo | Detalle |
+|---|---|
+| **Categoría** | Estructural |
+| **Ubicación en el sistema** | Componente 2 — Servicio de Notificaciones, Sección 10.2 |
+| **Problema que resuelve**   | Desacoplar al Servicio de Notificaciones de los proveedores y canales de entrega y de los detalles técnicos propios de los proveedores externos, como sus APIs, formatos de solicitud, mecanismos de autenticación y respuestas, permitiendo soportar SMS, correo, mensajería y futuros canales sin modificar la lógica principal del componente. |
+| **Alternativa considerada** | Incorporar la lógica específica de cada proveedor  en `NotificationProcessingService`, utilizando condiciones según el canal o proveedor seleccionado y construyendo directamente las solicitudes requeridas por cada proveedor externo. |
+| **Por qué el patrón y no la alternativa** | El patrón permite que el Servicio de Notificaciones trabaje mediante un contrato común (`INotificationAdapter`), independientemente del proveedor o canal resuelto por `NotificationAdapterFactory`. Cada implementación encapsula la comunicación entre el Servicio de Notificaciones y el contrato particular del proveedor externo, adaptando el modelo interno de SeniorCareHub al formato requerido por dicho proveedor. Esto permite incorporar o sustituir canales y proveedores de notificación sin modificar la lógica principal de procesamiento ni las estrategias de entrega, reduciendo el acoplamiento con servicios externos y el impacto de sus cambios. |
+
+![Aplicación del patrón Adapter en Componente 2 — Servicio de Notificaciones](../diagramas/patrones/patron-adapter.png)
+*Figura 25 — Aplicación del patrón Adapter en Componente 2 — Servicio de Notificaciones*
+> **Imagen en tamaño completo:** [`patron-adapter.png`](../diagramas/patrones/patron-adapter.png) · **Fuente editable:** [`patron-adapter.mmd`](../diagramas/patrones/patron-adapter.mmd)
+
+---
+
+### Patrón 5 — Repository
+
+| Campo | Detalle |
+|---|---|
+| **Categoría** | Estructural |
+| **Ubicación en el sistema** | Aplica transversalmente en todos los Componentes (1, 2, 3 y 4) detallados en la Sección 10 |
+| **Problema que resuelve**   | Desacoplar la lógica de negocio de los mecanismos de persistencia, proporcionando un acceso uniforme a los datos del dominio mediante contratos de repositorio, independientemente de la tecnología utilizada para almacenarlos. |
+| **Alternativa considerada** | Incorporara en los servicios de cada componente la lógica necesaria para acceder directamente a la base de datos, incorporando consultas, operaciones de persistencia y detalles de PostgreSQL. |
+| **Por qué el patrón y no la alternativa** | El patrón centraliza el acceso a la persistencia mediante contratos específicos para cada componente (`IMonitoringProfileRepository`, `INotificationProfileRepository`, `IEventIngestionRepository`, `IProfileConfigurationRepository`, entre otros), permitiendo que la lógica de negocio trabaje únicamente con abstracciones. Esto reduce el acoplamiento con PostgreSQL, facilita las pruebas unitarias mediante implementaciones simuladas y limita el impacto de cambios futuros en la tecnología o estrategia de persistencia. |
+
+![Aplicación transversal del patrón Repository en los Componentes 1, 2, 3 y 4](../diagramas/patrones/patron-repository.png)
+*Figura 26 — Aplicación transversal del patrón Repository en los Componentes 1, 2, 3 y 4*
+> **Imagen en tamaño completo:** [`patron-repository.png`](../diagramas/patrones/patron-repository.png) · **Fuente editable:** [`patron-repository.mmd`](../diagramas/patrones/patron-repository.mmd)
+
+---
+
+## 12. Principios y técnicas habilitadoras — evidencia
+
+Los principios definidos previamente en la Sección 6 se utilizaron como criterios para guiar el diseño arquitectónico de SeniorCareHub. En esta sección se presenta la evidencia concreta de su aplicación en la arquitectura y en los componentes diseñados, además, se identifican las tensiones introducidas por su aplicación.
+
+### 12.1 Evidencia de principios de diseño
+| Principio | Evidencia en el diseño | Referencia | Tensión con otro principio |
+|---|---|---|---|
+| Separación de responsabilidades (Separation of Concerns) | A nivel de arquitectura, la ingesta (Servicio de Ingesta), la evaluación de reglas (Motor de Reglas), el despacho de notificaciones (Servicio de Notificaciones) son contenedores independientes que solo se comunican de forma asíncrona a través del Bus de Mensajería (§7.2), cada uno con ciclo de despliegue propio, tal como lo hace explícito la vista de comportamiento en sus tres flujos (§7.3). Dentro del Motor de Reglas, `EventMessageConsumer` únicamente transforma y delega el mensaje, `EventValidator` solo valida, y cada estrategia (`FallRuleEvaluator`, `InactivityRuleEvaluator`, `SafeZoneRuleEvaluator`) evalúa un único tipo de regla. El mismo patrón se repite en el Servicio de Notificaciones (`AlertMessageConsumer`, `ChannelSelectionService`, `DeliveryPolicyResolver`, `NotificationAdapterFactory` cada uno con una única razón de cambio) y en el Servicio de Ingesta, donde `EventIngestionController` solo recibe y delega, `IEventSourceAuthenticator` solo autentica, `IngestionEventValidator` solo valida la estructura técnica, y `OutboxPublisher` solo publica lo ya aceptado.  El componente Gestión de Configuración de Perfiles refuerza esta evidencia al separar ProfileConfigurationController, ProfileConfigurationService, ProfileConfigurationValidator e IProfileConfigurationRepository | §7.2; §7.4; §10.1.1–§10.1.3; §10.2.1–§10.2.3; §10.3.1–§10.3.3; §10.4.1–§10.4.3 | Tensión con KISS: separar responsabilidades incrementa el número de clases, interfaces y colaboraciones. La separación se limita a responsabilidades con razones de cambio distintas y que responden directamente a los drivers del sistema. |
+| Diseño para el cambio (Open-Closed Principle) | El Motor de Reglas aplica Strategy (`IRuleEvaluator`) seleccionado por `RuleEvaluatorFactory`: agregar un tipo de regla no exige modificar `RuleProcessingService`. ADR-002 establece además que los perfiles son versionados y editables en tiempo de ejecución, satisfaciendo QS-05. El Servicio de Notificaciones extiende esta evidencia: `DeliveryPolicyResolver` selecciona entre `PriorityFallbackDeliveryStrategy` y `ParallelDeliveryStrategy` según la severidad de la alerta y la política configurada en el perfil, de modo que una nueva política de entrega se agrega sin tocar `NotificationProcessingService`; y `NotificationAdapterFactory` (ADR-004) permite incorporar un proveedor nuevo de la misma forma. | ADR-002; ADR-004; §10.1.1; §10.2.1; §10.4.1–§10.4.2; QS-05 | Tensión con KISS: cada estrategia e interfaz nueva incrementa la estructura del componente. SeniorCareHub admite un conjunto conocido de tipos de reglas y de políticas de entrega, evitando un motor dinámico o un lenguaje de reglas arbitrario. |
+| Defensa en profundidad (Defense in Depth) | La protección se aplica en capas independientes: en el borde, la API de Aplicación autentica al usuario y aplica autorización por rol (§7.2.1, contenedor 2), mientras que el Servicio de Ingesta autentica al emisor mediante `IEventSourceAuthenticator` (§10.3.2) antes de aceptar cualquier evento; en la lógica de negocio, QS-04 exige que todo acceso no autorizado reciba HTTP 401/403 y quede auditado; en el transporte, todas las comunicaciones internas usan TLS (§7.2.2); en la infraestructura, el acceso de los servicios a Service Bus, PostgreSQL y Key Vault se realiza mediante identidades administradas de Microsoft Entra ID en lugar de credenciales en configuración (§7.4.2); y en el dato, los eventos aplican minimización y segregación de tópicos por sensibilidad (§8.4, punto 5). Ver el desarrollo completo del modelo de amenazas en §14.5. En el componente Gestión de Configuración de Perfiles, `PublishNewVersionAsync(request, userContext)` exige que el usuario esté autenticado y autorizado antes de modificar una configuración, y `ConfigurationAuditEntry` conserva trazabilidad del cambio. | §4 QS-04; §7.2.1; §7.2.2; §7.4.1–§7.4.2; §8.4; §10.3.2; §10.4.2–§10.4.3| Tensión con KISS y rendimiento: autenticación, autorización, auditoría e identidades administradas agregan controles e interacciones adicionales. La complejidad se concentra en las fronteras del sistema y se justifica por la sensibilidad de los datos y por REST-02. |
+| Diseño para resiliencia (Fail Gracefully) | El Bus de Mensajería provee persistencia durable, reintentos, cola de mensajes muertos y sesiones ordenadas por adulto mayor (§7.2.1, contenedor 4), sustentando ADR-001 y la meta de "cero alertas críticas perdidas" de QA-03. El camino de error del Servicio de Notificaciones (§10.2.4) no confirma el mensaje al bus ante una falla transitoria, permitiendo su reentrega; el del Motor de Reglas (§10.1.4) hace lo mismo si falla la persistencia del estado de confirmación. El Componente 3 aporta la evidencia más directa de este principio: mediante el patrón Transactional Outbox (§11), `EventIngestionService` persiste el `MonitoringEvent` y su `OutboxMessage` en una misma transacción, de modo que una falla posterior en la publicación al bus (§10.3.4, camino de error) no compromete el evento ya aceptado — `OutboxPublisher` simplemente lo reintenta más tarde. |ADR-001; ADR-003; §7.3.2; §10.1.4; §10.2.4; §10.3.2–§10.3.4; §10.4.2–§10.4.4 | Tensión con KISS y QA-02: mensajería durable, reintentos, deduplicación y el patrón Outbox incrementan la complejidad y pueden agregar latencia. El diseño acepta este costo porque QA-03 prioriza evitar la pérdida silenciosa de eventos y alertas. |
+| KISS (Keep It Simple) | ADR-002 rechaza explícitamente un motor de reglas dinámico o un lenguaje de reglas arbitrario a favor de un conjunto controlado y conocido de tipos de reglas parametrizables. El Servicio de Ingesta refuerza esta disciplina por diseño: su responsabilidad se acota deliberadamente a autenticar, validar técnicamente y garantizar la aceptación durable — la tabla de contenedores es explícita en que "no evalúa reglas" (§7.2.1, contenedor 3), esto evita que la lógica de detección se duplique o se filtre hacia el borde del sistema. |§7.2.1; ADR-002; ADR-004; §10.3; §10.4 | Tensión con OCP, DIP y resiliencia: mayor extensibilidad y tolerancia a fallos requieren interfaces, adaptadores y mecanismos de recuperación como el Outbox. KISS no significa minimizar el número de elementos, sino evitar los que no se justifican por un driver o escenario concreto. |
+| Principio de menor privilegio (Principle of Least Privilege) | La API de Aplicación aplica autorización por rol a todas las operaciones expuestas, y QS-04 formaliza que el control de acceso se basa también en la relación entre el actor y el adulto mayor consultado: un familiar o cuidador solo accede a los adultos mayores con los que posee una relación autorizada, reflejando RF-04. El 100 % de los casos de la suite de autorización debe responder 401 o 403 según corresponda (§4 QS-04).  El Gestión de Configuración de Perfiles aporta evidencia contractual adicional: la publicación de una nueva versión exige un userContext autenticado y autorizado para modificar la configuración del adulto mayor indicado. | RF-04;QA-04;QS-04;§7.2.1;§10.4.2;§14.5 | Tensión con KISS: la autorización por rol y relación es más compleja que un esquema RBAC simple, pero un rol por sí solo no garantiza que un familiar acceda únicamente a quienes tiene autorización de consultar. Ver el riesgo residual de diseño de este mecanismo en §13.1 y §14.5. |
+| Inversión / Aislamiento de dependencias externas (Dependency Inversion) | `INotificationAdapter` abstrae a los proveedores externos detrás de una interfaz común resuelta por `NotificationAdapterFactory` (ADR-004). Los repositorios (`IMonitoringProfileRepository`, `INotificationProfileRepository`, etc.) abstraen la persistencia. El Componente 3 añade dos abstracciones adicionales: `IEventSourceAuthenticator` aísla el mecanismo concreto de autenticación del emisor —"independientemente del mecanismo concreto utilizado", según su propio contrato (§10.3.2)— y `IEventPublisher` aísla la tecnología de mensajería utilizada para publicar al bus, de modo que el núcleo de ingesta no depende ni del wearable concreto ni del producto de mensajería elegido. | §5 REST-01, REST-03; §9 ADR-004; §10.1.2, §10.2.2 y §10.3.2 (contratos de interfaz) | Tensión con KISS: las interfaces introducen indirección y aumentan el número de elementos del diseño. Se mantienen en puntos donde existe variabilidad real —proveedor, mecanismo de autenticación, tecnología de mensajería— y no como abstracciones preventivas sin un cambio identificado. |
+
+### 12.2 Técnicas habilitadoras evidenciadas
+
+| Técnica habilitadora | Evidencia en SeniorCareHub | Contribución al diseño |
+|---|---|---|
+| **Abstracción mediante interfaces** | `IRuleEvaluator`, `INotificationAdapter`, `IChannelDeliveryStrategy`, `IEventPublisher`, `IEventSourceAuthenticator`, `IProfileConfigurationRepository`, `IProfileConfigurationValidator` y repositorios. | Reduce el acoplamiento con tecnologías, integraciones y algoritmos concretos y facilita sustitución, pruebas y evolución. |
+| **Configuración y versionado** | ADR-002; `ProfileConfigurationVersion`; `MonitoringProfile`; `NotificationProfile`; reglas, destinatarios, canales y preferencias versionados. | Permite modificar comportamiento soportado sin recompilar ni redesplegar los consumidores y conserva el historial de configuraciones utilizadas. |
+| **Diseño por contrato** | Precondiciones, postcondiciones y excepciones documentadas en §10.1.2, §10.2.2, §10.3.2 y §10.4.2. | Hace explícitas las obligaciones de los colaboradores y diferencia resultados esperados de negocio de fallos técnicos. |
+| **Idempotencia y deduplicación** | `DeduplicationService`, consultas de tracking de notificaciones y unicidad de `EventId` en Ingesta. | Permite tolerar la semántica *at-least-once* sin producir deliberadamente alertas, notificaciones o eventos duplicados. |
+| **Persistencia explícita del estado relevante** | `ConfirmationState`, `Notification`, `NotificationAttempt`, `OutboxMessage`, `ProfileConfigurationVersion` y `ConfigurationAuditEntry`. | Permite recuperar procesamiento después de reinicios y mantener trazabilidad durable de evaluaciones, entregas, publicaciones y cambios de configuración. |
+| **Transactional Outbox** | `MonitoringEvent` y `OutboxMessage` se persisten atómicamente; `OutboxPublisher` publica posteriormente los mensajes pendientes. | Elimina la ventana de fallo entre persistir un evento y registrar de forma durable la intención de publicarlo al Bus. |
+| **Activación atómica de configuración** | `SaveAndActivateAsync(configuration, auditEntry)` persiste la nueva versión completa y la auditoría en una misma operación transaccional, activándola solo si toda la escritura se confirma. | Evita configuraciones parciales y conserva la versión anterior como válida ante una falla durante la publicación de una nueva versión. |
+| **Normalización de integraciones externas** | `INotificationAdapter`, `AdapterSendResult` y resultados normalizados de las estrategias de entrega. | Evita propagar contratos y semánticas particulares de proveedores hacia la lógica coordinadora. |
+| **Trazabilidad distribuida y de configuración** | `correlationId`, versionado de perfiles, `ConfigurationAuditEntry`, telemetría centralizada y registros de intentos. | Permite reconstruir el recorrido de un evento y relacionar evento, alerta, versión de configuración, cambio administrativo y notificación. |
+
+### 12.3 Tensiones y criterio de aplicación
+
+Los principios adoptados no se maximizan de manera independiente. Separar responsabilidades y aplicar inversión de dependencias aumenta el número de clases y contratos, mientras KISS busca evitar complejidad innecesaria. SeniorCareHub resuelve esta tensión manteniendo abstracciones únicamente en fronteras con razones de cambio reales como: evaluadores de reglas, proveedores externos, persistencia, mensajería, autenticación de fuentes y gestión de configuración versionada.
+
+La resiliencia introduce una tensión adicional con rendimiento y simplicidad. La mensajería durable, la deduplicación, la persistencia del estado temporal, Transactional Outbox y las transacciones de publicación de configuraciones agregan pasos al procesamiento, pero reducen el riesgo de pérdida silenciosa o de estados parciales ante fallos. Este costo se considera justificable por QA-03 y QA-05, siempre que las mediciones posteriores demuestren que el presupuesto de QS-02 continúa siendo alcanzable.
+
+Finalmente, la idempotencia reduce los efectos de reentregas dentro de SeniorCareHub, pero no garantiza semántica `exactly-once` frente a proveedores externos. Si un proveedor acepta una notificación y el sistema falla antes de persistir el resultado, un reintento puede generar una entrega duplicada cuando el proveedor no soporta una clave de idempotencia. Este comportamiento debe considerarse un riesgo residual de integración y no una garantía de entrega exactamente una vez.
+
+---
+
+# BLOQUE 6 — CALIDAD Y TENDENCIAS
+*Hito: Entrega final (S14)*
+
+---
+
+## 13. Análisis de calidad del diseño
+
+Esta sección valida los escenarios QS-01 a QS-05 contra las vistas arquitectónicas, los ADRs y los **cuatro componentes detallados en la Sección 10**. Debido a que el alcance del proyecto corresponde al **diseño** y no a una implementación productiva completamente desplegada, las métricas cuantitativas se consideran criterios de aceptación. El diseño puede demostrar que existen mecanismos para perseguir esas metas, pero su cumplimiento definitivo requiere pruebas de carga, disponibilidad, inyección de fallos y seguridad.
+
+### 13.1 Validación de escenarios de calidad
+
+
+| Escenario | Medida requerida | Cómo el diseño la satisface | Decisiones que lo habilitan | Riesgo residual |
+|---|---|---|---|---|
+| **QS-01 — Disponibilidad** | Disponibilidad mensual del pipeline crítico ≥ 99.5 % (≤ 3.6 h de indisponibilidad/mes) | ADR-001 desacopla temporalmente Ingesta, Motor de Reglas y Notificaciones, permitiendo que un productor continúe aceptando trabajo aunque un consumidor esté temporalmente indisponible. La vista de despliegue mantiene una réplica mínima del Motor de Reglas y del Servicio de Notificaciones para evitar arranques en frío. | ADR-001; §7.2; §7.4.1–§7.4.2 | El diseño incorpora mecanismos orientados a alcanzar la meta, pero no demuestra por sí solo 99.5 %. La instancia única, la ausencia de redundancia de zona y la dependencia de PostgreSQL/Service Bus requieren validación operativa. Una meta superior obligaría a revisar la estrategia de redundancia. |
+| **QS-02 — Rendimiento** | ≤ 5 s en p95 y ≤ 8 s en p99 desde la aceptación durable del evento hasta la aceptación por el primer proveedor | La propagación por eventos evita sondeo periódico; las sesiones ordenan únicamente por adulto mayor y permiten paralelismo entre personas distintas; ADR-002 utiliza tipos de reglas controlados; el Servicio de Notificaciones resuelve políticas y proveedores mediante contratos predefinidos. | ADR-001; ADR-002; §7.5.3; §10.1; §10.2; §10.3 | No existe todavía una prueba de carga ejecutada. Además, el tiempo entre la aceptación durable y la publicación efectiva del `OutboxMessage` forma parte del presupuesto de QS-02; la frecuencia y capacidad de `OutboxPublisher` deben dimensionarse para que esa espera no consuma una proporción significativa de los 5 s. El presupuesto temporal de §14.2.3 debe incluir explícitamente esta etapa. |
+| **QS-03 — Tolerancia a fallos / Resiliencia** | 100 % de eventos críticos asociados a un estado durable y trazable; 0 alertas huérfanas; primer fallback < 10 s en p95 | El Bus mantiene mensajes no confirmados para reentrega; el Motor de Reglas persiste `ConfirmationState` y no confirma el mensaje cuando no puede completar el procesamiento de forma segura; el Servicio de Notificaciones registra intentos y dispone de estrategias de fallback/reintento; el Servicio de Ingesta utiliza Transactional Outbox para conservar durablemente un evento aceptado aunque falle su publicación posterior. La recuperación del estado de confirmación tras reinicios se resuelve en §7.5.3 mediante persistencia en BD Operativa y recuperación por la réplica que retoma la sesión. | ADR-001; ADR-003; §7.3.2; §7.5.3; §10.1.4; §10.2.1–§10.2.4; §10.3.4 | Falta ejecutar la prueba de inyección de fallos y medir el tiempo real de fallback. Además, la semántica *at-least-once* puede producir efectos duplicados frente a proveedores externos si el envío fue aceptado pero el resultado no pudo persistirse antes de una reentrega. |
+| **QS-04 — Seguridad y privacidad** | 100 % de casos de autorización con HTTP 401/403 según corresponda; registro auditable consultable < 5 s | La API concentra autenticación y autorización; QS-04 exige autorización por rol y relación; el Servicio de Ingesta autentica fuentes; las comunicaciones usan TLS; el despliegue utiliza identidades administradas y Key Vault para reducir exposición de credenciales. El Componente 4 exige un contexto de usuario autorizado para publicar configuraciones y persiste `ConfigurationAuditEntry` junto con la nueva versión. | REST-02; QS-04; §7.2.1–§7.2.2; §7.4.2; §10.3.2; §10.4.2–§10.4.4; §12 | Las identidades administradas resuelven autenticación servicio-a-servicio, no la autenticación y autorización de usuarios finales. El mecanismo concreto de identidad, las políticas de rol/relación, la protección de la bitácora y la medida de auditoría < 5 s deben validarse en implementación. |
+| **QS-05 — Modificabilidad** | Nueva configuración disponible < 10 min sin recompilar ni redesplegar el Motor de Reglas | ADR-002 mantiene reglas y perfiles como configuración versionada. El Componente 4 materializa esa decisión mediante `ProfileConfigurationService`, `ProfileConfigurationVersion`, `ProfileConfigurationValidator`, `SaveAndActivateAsync` y `ConfigurationAuditEntry`: la nueva versión se construye, valida, persiste y activa de forma atómica, mientras la versión anterior permanece disponible para trazabilidad. `IRuleEvaluator`, `IChannelDeliveryStrategy` e `INotificationAdapter` mantienen estables los coordinadores ante nuevos evaluadores, políticas o proveedores compatibles. | ADR-002; ADR-004; §7.3.3; §10.1.1; §10.2.1; **§10.4.1–§10.4.4** | La creación, validación y activación de versiones ya está resuelta por diseño. Queda pendiente definir de forma única **cómo los consumidores seleccionan la versión aplicable** y garantizar su visibilidad dentro del límite de 10 min. Actualmente §7.3.3 supone que el Motor de Reglas consulta la versión vigente, mientras §10.1 y §10.3 incluyen `event.ProfileVersion`; esta semántica debe unificarse. Si se utiliza caché, también debe definirse su política de actualización o invalidación. |
+
+### 13.1.1 Resultado de la validación
+
+Los cinco escenarios poseen soporte explícito en la arquitectura, pero ninguno de los valores cuantitativos debe presentarse como demostrado mientras no existan pruebas ejecutadas. QS-03 y QS-05 poseen mecanismos estructurales particularmente claros —persistencia durable, reentrega, versionado, activación atómica, estrategias y adaptadores—, mientras QS-01, QS-02 y QS-04 dependen en mayor medida de configuración de infraestructura y validación operativa.
+
+La incorporación del Componente 4 fortalece especialmente QS-05: la publicación de configuraciones ya no es una responsabilidad implícita de la API, sino un caso de uso diseñado con contratos, validación, persistencia atómica, historial y auditoría. El principal riesgo residual de QS-05 se desplaza por tanto desde **cómo crear una versión consistente** hacia **cómo los consumidores determinan y observan la versión vigente**.
+
+### 13.2 Análisis de trade-offs entre atributos de calidad
+
+| Conflicto | Atributo favorecido | Atributo sacrificado | Decisión que lo resolvió | Justificación |
+|---|---|---|---|---|
+| **Confiabilidad y disponibilidad vs. simplicidad operativa** | QA-01, QA-03 | Simplicidad de despliegue y depuración | ADR-001 — arquitectura orientada a eventos | Se acepta mayor complejidad operativa y consistencia eventual para aislar fallos y conservar mensajes cuando consumidores están temporalmente indisponibles. |
+| **Exactitud de detección vs. rendimiento** | Reducción de falsas alarmas | QA-02 | ADR-003 — confirmación configurable y deduplicación | Alertar inmediatamente minimiza latencia pero aumenta falsas alarmas; la confirmación configurable permite aplicar espera solo cuando el tipo de evento lo requiere. |
+| **Modificabilidad vs. rendimiento** | QA-05 | Parte del presupuesto de QA-02 | ADR-002 — tipos controlados y parámetros configurables | Una lógica fija sería más rápida, pero obligaría a redesplegar ante cambios. Se acepta el costo de leer y evaluar configuración dinámica. |
+| **Consistencia de configuración vs. simplicidad de actualización** | QA-05, QA-04 | Simplicidad de persistencia | §10.4 — versionado y `SaveAndActivateAsync` | Actualizar reglas, destinatarios y canales por separado sería más simple, pero permitiría estados parciales. La publicación atómica de una `ProfileConfigurationVersion` agrega coordinación transaccional a cambio de una configuración coherente y auditable. |
+| **Seguridad y privacidad vs. disponibilidad/rendimiento** | QA-04 | Parte de QA-01 y QA-02 | Autenticación, autorización, auditoría, TLS e identidades administradas | La sensibilidad de los datos y REST-02 hacen que estos controles sean obligatorios aun cuando agreguen validaciones y dependencias. |
+| **Modificabilidad y resiliencia de canales vs. simplicidad estructural** | QA-05 y, cuando se aplica fallback, QA-03 | Simplicidad interna | ADR-004 — servicio multicanal con estrategias y adaptadores | Un proveedor integrado directamente sería más simple, pero aumentaría acoplamiento y dificultaría fallback y sustitución. Un servicio por proveedor introduciría duplicación y mayor costo operativo. |
+| **Simplicidad de Ingesta vs. no pérdida del evento** | QA-03 | Simplicidad del flujo | Transactional Outbox en §10.3 | Persistir y publicar directamente deja una ventana de fallo entre ambos pasos. Outbox agrega una entidad y un publicador adicional, pero conserva durablemente la intención de publicación. |
+| **Resiliencia de entrega vs. latencia y costo** | QA-03 | QA-02 y costo operativo | Estrategias `PriorityFallbackDeliveryStrategy` / `ParallelDeliveryStrategy` | Fallback y envío paralelo aumentan las oportunidades de entrega, pero implican más llamadas a proveedores y pueden consumir mayor latencia o costo. |
+
+### 13.3 Métricas de diseño — estimación
+
+La estimación principal se realiza al nivel solicitado por el template: los **cuatro componentes detallados en la Sección 10**. Se utiliza una evaluación cualitativa de cohesión y acoplamiento basada en la concentración de responsabilidades, número de dependencias, uso de abstracciones y exposición a tecnologías externas.
+
+| Componente | Cohesión estimada | Acoplamiento estimado | Observación |
+|---|---|---|---|
+| **Motor de Reglas** | **Alta** | **Medio** | Todas sus clases colaboran alrededor de una finalidad común: evaluar eventos, aplicar confirmación/deduplicación y generar alertas. Tiene varias dependencias necesarias hacia perfiles, reglas, estado, persistencia y publicación, pero la mayoría se encuentran detrás de interfaces (`IRuleEvaluator`, repositorios, `IAlertPublisher`). |
+| **Servicio de Notificaciones** | **Alta** | **Medio** | Su responsabilidad se mantiene centrada en convertir una alerta confirmada en entregas trazables. Integra configuración, políticas, adaptadores, tracking y proveedores, pero `IChannelDeliveryStrategy`, `INotificationAdapter` y repositorios reducen el acoplamiento directo con implementaciones concretas. |
+| **Servicio de Ingesta de Eventos** | **Alta** | **Bajo–Medio** | Su alcance es deliberadamente angosto: autenticar la fuente, validar, aceptar de forma durable y publicar. Transactional Outbox separa aceptación y publicación, mientras `IEventSourceAuthenticator`, `IEventIngestionRepository` e `IEventPublisher` mantienen aislados los detalles tecnológicos. |
+| **API de Aplicación — Gestión de Configuración de Perfiles** | **Alta** | **Bajo–Medio** | Las clases colaboran alrededor de una finalidad única: construir, validar, persistir, activar y auditar versiones coherentes de configuración. `ProfileConfigurationService` depende principalmente de `IProfileConfigurationRepository` e `IProfileConfigurationValidator`; no necesita invocar directamente al Motor de Reglas ni al Servicio de Notificaciones, ya que estos consumen posteriormente la configuración persistida. |
+
+### 13.3.1 Observaciones a nivel de clases
+
+Los puntos de mayor colaboración interna son `RuleProcessingService` y `NotificationProcessingService`. Esto no implica cohesión baja: ambos mantienen una finalidad única de orquestación. Su acoplamiento se considera **medio**, no alto, porque aunque dependen de varios colaboradores, estos se expresan principalmente mediante contratos estables y no mediante dependencias directas a PostgreSQL, Azure Service Bus o proveedores específicos.
+
+`EventIngestionService` y `ProfileConfigurationService` presentan un conjunto menor de colaboradores y fronteras más acotadas. En el primer caso, la aceptación durable se delega al repositorio y la publicación se separa mediante Outbox; en el segundo, la validación y persistencia se delegan respectivamente a `IProfileConfigurationValidator` e `IProfileConfigurationRepository`. Por ello ambos se mantienen en un rango de acoplamiento **bajo–medio**.
+
+Por contraste, clases como los evaluadores de reglas, `NotificationAdapterFactory`, `OutboxPublisher`, `ProfileConfigurationValidator` e implementaciones concretas de estrategias poseen responsabilidades más reducidas y menor número de dependencias, por lo que presentan cohesión alta y acoplamiento bajo.
+
+### 13.3.2 Criterio de interpretación
+
+Las métricas se utilizan como indicadores de calidad estructural y no como objetivos absolutos. Un componente distribuido que orquesta varias colaboraciones puede presentar acoplamiento medio y seguir siendo adecuado si esas dependencias están justificadas por su responsabilidad y se mantienen detrás de contratos estables. La principal señal de deterioro sería que un componente comenzara a incorporar responsabilidades ajenas a su frontera o dependencias tecnológicas directas que hoy permanecen aisladas.
+
+---
+
+# BLOQUE 7 — SECCIONES ESPECÍFICAS POR TIPO DE SISTEMA
+*Hito: Entrega final (S14)*
+
+---
+
+## 14. Asuntos clave de diseño
+
+Este capítulo analiza SeniorCareHub bajo las lentes transversales que atraviesan su arquitectura: su condición de sistema distribuido desplegado en la nube, su comportamiento concurrente y con restricciones temporales, y su relación con el dominio de Internet de las Cosas. Cada apartado se apoya en las vistas del capítulo 7 y en las decisiones registradas en los capítulos 8 y 9, y explicita tanto lo que el diseño resuelve como lo que deliberadamente deja fuera de alcance.
+
+### 14.1 Sistemas distribuidos y computación en la nube
+
+#### 14.1.1 Por qué SeniorCareHub es un sistema distribuido
+
+SeniorCareHub cumple la caracterización clásica de un sistema distribuido: un conjunto de procesos independientes que se ejecutan en nodos separados, se comunican únicamente mediante paso de mensajes por red, no comparten memoria y no disponen de un reloj global común.
+
+La vista de despliegue (§7.4) lo hace evidente. El wearable emite desde fuera de la nube; el Servicio de Ingesta y la API se ejecutan en un plan de App Service; el Motor de Reglas y el Servicio de Notificaciones lo hacen en un entorno de Container Apps con réplicas independientes; el bus y las bases de datos son servicios gestionados con su propio ciclo de vida; y los proveedores de notificación son sistemas de terceros administrados por organizaciones distintas.
+
+Esta distribución no es un accidente de implementación sino una consecuencia directa de los drivers. QA-03 exige que ninguna alerta se pierda ante el fallo de un componente, y QA-01 una disponibilidad que no dependa del eslabón más débil de una cadena. Ambos requisitos son inalcanzables si la recepción, la evaluación y el despacho comparten destino: el análisis de alternativas de §8.3 descartó por ese motivo tanto el monolito sincrónico como los servicios acoplados por llamadas REST encadenadas.
+
+#### 14.1.2 Consecuencias de la distribución y respuestas del diseño
+
+| Consecuencia | Cómo se manifiesta en SeniorCareHub | Respuesta del diseño |
+|---|---|---|
+| Fallos parciales | Un componente puede caer mientras los demás siguen operando, y el que falla no puede avisar de forma confiable | El intermediario durable conserva el mensaje hasta que un consumidor lo confirma; la cola de mensajes muertos captura lo que agota los reintentos (§8.2) |
+| Consistencia eventual | El dashboard puede no reflejar todavía un evento ya recibido por la ingesta | Se acepta explícitamente como consecuencia negativa del estilo (§8.4); las consultas de estado no se usan como fuente para decisiones críticas, que viajan por notificación |
+| Entrega al menos una vez | Un mismo evento o alerta puede procesarse más de una vez tras un reintento | Idempotencia obligatoria en todos los consumidores, deduplicación por adulto mayor, tipo y período (ADR-003) y detección de duplicados del bus |
+| Ausencia de reloj global | La ventana de confirmación compara instantes registrados en nodos distintos, cuyos relojes divergen | Las ventanas se calculan sobre la marca temporal del evento de origen y no sobre la del instante de procesamiento, de modo que un desfase entre nodos no altera el resultado de la evaluación |
+| Orden parcial de mensajes | Dos eventos de una misma persona podrían evaluarse fuera de secuencia | Particionamiento por sesión con identificador del adulto mayor, que garantiza orden y exclusividad de consumo (§7.5.3) |
+| Observabilidad fragmentada | Ninguna traza local explica por sí sola el recorrido de una alerta | Identificador de correlación propagado extremo a extremo y telemetría centralizada en Application Insights (§7.4.1) |
+
+#### 14.1.3 Modelo de nube adoptado
+
+El sistema se despliega bajo un modelo de **plataforma como servicio**, apoyándose en servicios gestionados para el cómputo, la mensajería y la persistencia. Esta elección se contrastó con dos alternativas.
+
+Un modelo de **infraestructura como servicio**, con máquinas virtuales administradas por el equipo, habría otorgado control total sobre el sistema operativo y las versiones del intermediario y del motor de base de datos. Se descartó porque ese control no responde a ningún driver del sistema y, en cambio, traslada al equipo la responsabilidad de parchado, alta disponibilidad y respaldo, actividades que un equipo académico de tres personas no puede sostener con la fiabilidad que exige QA-01.
+
+Un modelo **completamente sin servidor**, con funciones activadas por evento, resultaba atractivo por su costo en reposo. Se descartó por la misma razón que se rechazó el escalado a cero réplicas en §7.4.2: el arranque en frío introduce una demora de varios segundos que compite directamente contra el presupuesto de cinco segundos de QS-02. La decisión ilustra una tensión característica de la nube, entre elasticidad económica y latencia predecible, resuelta a favor de la segunda porque el dominio es la seguridad de una persona.
+
+La adopción de servicios gestionados implica además un **modelo de responsabilidad compartida**: la operación del intermediario, del motor de base de datos y de la plataforma de ejecución corresponde al proveedor, mientras que el equipo conserva la responsabilidad sobre la lógica de negocio, el modelo de datos, la configuración de seguridad y el control de acceso. Los compromisos de disponibilidad publicados por el proveedor forman parte del razonamiento que sustenta la meta de QS-01, tal como se argumentó al dimensionar el despliegue.
+
+#### 14.1.4 Falacias de la computación distribuida
+
+El análisis de las ocho falacias formuladas por Deutsch y Gosling permite verificar qué supuestos implícitos podrían comprometer el diseño.
+
+**La red es confiable.** El diseño no incurre en esta falacia: es precisamente su rechazo lo que motiva el estilo adoptado. La ingesta acepta el evento sin esperar la evaluación, y ningún mensaje se considera procesado hasta que el consumidor lo confirma.
+
+**La latencia es cero.** Parcialmente atendida. El presupuesto de QS-02 contempla los saltos de red internos, pero el diseño depende de la latencia de proveedores externos sobre los que no tiene control. La mitigación es el tiempo límite por canal y el escalamiento al siguiente canal por prioridad (§7.3.2), no la esperanza de una respuesta rápida.
+
+**El ancho de banda es infinito.** Atendida indirectamente. La minimización del contenido de los eventos, adoptada en §8.4 por motivos de privacidad, reduce también el volumen transportado. El sistema no transmite datos clínicos ni multimedia.
+
+**La red es segura.** Atendida. Todo tráfico viaja cifrado, y el acceso entre servicios se realiza mediante identidades administradas en lugar de credenciales incrustadas en configuración (§7.4.2).
+
+**La topología no cambia.** Atendida por construcción. Las réplicas de Container Apps se crean y destruyen según la carga, de modo que ningún componente puede asumir la dirección fija de otro: toda comunicación del camino crítico ocurre a través del intermediario y no por invocación directa entre pares.
+
+**Hay un solo administrador.** No atendida, y es una limitación reconocida. Los proveedores de notificación son operados por terceros, con sus propias ventanas de mantenimiento, cuotas y cambios de contrato. La restricción REST-01 lo declara, y ADR-004 lo mitiga aislando cada proveedor tras una interfaz interna estable, pero el sistema sigue expuesto a decisiones ajenas.
+
+**El costo de transporte es cero.** Parcialmente atendida. Cada salto por el intermediario consume operaciones facturables y añade trabajo de serialización. La decisión de no dividir en más contenedores de los necesarios, y de resolver la gestión de alertas dentro del Motor de Reglas en lugar de crear un contenedor propio (§7.6.5), responde en parte a este criterio.
+
+**La red es homogénea.** No atendida, y tampoco es un objetivo. El sistema convive deliberadamente con tres protocolos distintos según la frontera: HTTP en el borde con el dispositivo, mensajería asincrónica en el interior y protocolos de proveedor en la salida. La heterogeneidad se administra mediante adaptadores en lugar de negarse.
+
+#### 14.1.5 Límites reconocidos del diseño distribuido
+
+**Sin replicación geográfica.** Todos los recursos residen en una única región. Una interrupción regional del proveedor deja al sistema completamente indisponible, sin ruta alterna. La meta de QS-01 se dimensionó contra ese supuesto.
+
+**Base de datos como punto único de falla.** El intermediario protege las alertas en tránsito, pero el Motor de Reglas no puede evaluar sin acceso a las reglas y al estado de confirmación. Ante una caída prolongada de la base, los eventos se acumulan en el bus sin pérdida —lo que preserva QA-03— pero el sistema deja de detectar situaciones críticas en tiempo útil, lo que sí compromete QS-02.
+
+**Zona de disponibilidad única.** Decisión consciente documentada en §7.4.2, coherente con la meta comprometida y no con una meta superior.
+
+**El simulador no reproduce la adversidad real de la red.** Un dispositivo portado por una persona sufre pérdidas de cobertura, agotamiento de batería y reconexiones que el simulador no genera. Las garantías de no pérdida verificadas en pruebas cubren el tramo desde la ingesta en adelante, no el tramo entre el dispositivo y la nube.
+
+**Ausencia de procesamiento en el borde.** Todo evento viaja íntegro a la nube antes de ser evaluado, incluidos aquellos que ninguna regla llegará a considerar. Las implicaciones de esta decisión se analizan en §14.3.
+
+### 14.2 Sistemas concurrentes y de tiempo real
+
+#### 14.2.1 Naturaleza concurrente del sistema
+
+La concurrencia en SeniorCareHub proviene de cuatro fuentes simultáneas: múltiples adultos mayores emitiendo eventos al mismo tiempo, múltiples réplicas de cada servicio consumiendo del intermediario, múltiples usuarios consultando el dashboard, y múltiples notificaciones despachándose en paralelo hacia proveedores distintos.
+
+La vista de concurrencia (§7.5) documenta las unidades de ejecución, los recursos compartidos y los mecanismos de sincronización adoptados. Este apartado no los repite: analiza el sistema desde la perspectiva temporal, que es la que determina si las garantías de concurrencia bastan para cumplir los compromisos asumidos.
+
+#### 14.2.2 Clasificación temporal del sistema
+
+SeniorCareHub es un sistema de **tiempo real blando**, no duro. La distinción es relevante y conviene sostenerla con precisión, porque determina qué técnicas de diseño corresponden y cuáles serían sobredimensionadas.
+
+En un sistema de tiempo real duro, incumplir un plazo constituye un fallo del sistema con consecuencias equivalentes a producir un resultado incorrecto: el control de vuelo o un marcapasos operan bajo esa lógica. En un sistema de tiempo real blando, el valor del resultado se degrada progresivamente al superarse el plazo, pero el resultado sigue siendo útil.
+
+La formulación misma de QS-02 evidencia la clasificación: la meta se expresa como cinco segundos **en el percentil 95**, no como un plazo absoluto para cada evento. Un requisito de tiempo real duro no admitiría un percentil, porque el cinco por ciento restante constituiría un fallo. En SeniorCareHub, una alerta entregada en siete segundos sigue cumpliendo su propósito: es peor que una entregada en tres, pero no equivale a no entregarla.
+
+La consecuencia práctica es que el diseño no requiere un sistema operativo de tiempo real, planificación determinista de tareas, ni análisis de planificabilidad o de inversión de prioridades. Sí requiere, en cambio, administrar de forma explícita un presupuesto de latencia y verificar su cumplimiento mediante medición estadística.
+
+#### 14.2.3 Presupuesto de latencia
+
+Descomponer el objetivo de cinco segundos permite identificar dónde se consume realmente el tiempo y dónde tiene sentido optimizar. Las cifras siguientes son estimaciones de diseño que deben validarse mediante medición sobre el despliegue real; su valor está en las proporciones relativas más que en los valores absolutos.
+
+| Etapa | Estimación | Observaciones |
+|---|---|---|
+| Recepción, validación y persistencia del evento | ~200 ms | Incluye la escritura en el Almacén de Eventos; ocurre antes de la aceptación durable, por lo que queda fuera de la ventana medida por QS-02 |
+| Espera en el Outbox hasta la publicación efectiva | ~200 – 500 ms | Etapa introducida por ADR-005; depende de la frecuencia del OutboxPublisher, cuya profundidad y antigüedad deben monitorearse (§13.1) |
+| Publicación y entrega por el intermediario | ~100 ms | Dos tránsitos por el bus a lo largo del flujo |
+| Lectura de reglas y estado, y evaluación | ~300 ms | Incluye una lectura y una escritura sobre la BD Operativa |
+| Publicación y entrega de la alerta confirmada | ~100 ms | Segundo tránsito por el intermediario |
+| Resolución de destinatarios y canales | ~200 ms | Lectura del perfil de notificación |
+| **Invocación al proveedor externo** | **1 000 – 3 000 ms** | **Etapa dominante y fuera del control del equipo** |
+| Margen disponible | ~800 ms | Absorbe variabilidad y reintentos internos |
+
+Conviene precisar los límites de la ventana que QS-02 efectivamente mide: el reloj inicia en la aceptación durable del evento y se detiene cuando el primer proveedor acepta la solicitud. La etapa de recepción y persistencia queda por lo tanto fuera de la ventana medida y opera como holgura adicional, y la entrega final al destinatario tampoco se contabiliza. El escenario acota además el percentil 99 a 8 segundos, lo que confirma el carácter estadístico —y no absoluto— de la garantía analizada en §14.2.2. La espera en el Outbox, en cambio, sí forma parte de la ventana medida, pues ocurre después de la aceptación durable; con ello queda incluida la etapa que §13.1 exige contabilizar.
+
+La conclusión relevante es que el tramo bajo control del equipo consume en torno a una cuarta parte del presupuesto, mientras que la invocación al proveedor externo domina el resto. Optimizar el procesamiento interno tendría un efecto marginal sobre QS-02; en cambio, la elección del proveedor, la configuración de su tiempo límite y el orden de prioridad de canales son las palancas que efectivamente determinan el cumplimiento de la meta. Esta observación refuerza la decisión de ADR-004 de mantener a los proveedores tras adaptadores intercambiables.
+
+Una segunda consecuencia afecta a la ventana de confirmación de ADR-003: cualquier ventana configurada se suma íntegramente al presupuesto. Con el margen estimado, una ventana superior a un segundo comprometería la meta para los eventos que la requieran. Por ello ADR-003 establece que los eventos de criticidad inmediata no esperan ventana alguna, lo que resuelve la tensión entre exactitud y latencia a favor de la latencia justo donde la persona corre riesgo.
+
+#### 14.2.4 Riesgos temporales identificados
+
+**Acumulación por contrapresión.** Si la tasa de eventos entrantes supera de forma sostenida la capacidad de evaluación, la cola crece y la latencia aumenta aunque no se pierda ningún mensaje. Conviene explicitar el matiz: la durabilidad del intermediario protege contra la pérdida, no contra la demora. La mitigación es el escalado automático de réplicas gobernado por la profundidad de la suscripción, con el techo de paralelismo que impone el particionamiento por sesión (§7.5.3).
+
+**Expiración del bloqueo durante el procesamiento.** Si una evaluación excede la duración del bloqueo del mensaje, el intermediario lo reentrega y se produce trabajo duplicado que consume capacidad. La deduplicación evita la alerta doble, pero no el costo temporal. Es una condición de configuración a verificar mediante pruebas, no una propiedad garantizada por el diseño.
+
+**Pausas de la plataforma de ejecución.** Las pausas por recolección de basura y el agotamiento del grupo de hilos en los servicios .NET introducen variabilidad no determinista en el percentil alto de latencia. Es una de las razones por las que la meta se expresa en percentil 95 y no como plazo absoluto.
+
+**Arranque en frío.** Mitigado mediante la réplica mínima permanente decidida en §7.4.2, a costa del consumo en reposo.
+
+**Divergencia de relojes.** Las ventanas temporales se calculan sobre la marca del evento de origen y no sobre la del instante de procesamiento, de modo que un desfase entre nodos no altera el resultado de la evaluación.
+
+#### 14.2.5 Verificación de las garantías temporales
+
+Las garantías de este sistema son estadísticas y por lo tanto deben verificarse por medición, no por demostración analítica. La telemetría centralizada descrita en §7.4.1, con identificador de correlación propagado extremo a extremo, permite reconstruir la latencia real de cada alerta y calcular el percentil comprometido sobre datos de operación. Sin esa instrumentación, QS-02 sería un objetivo declarado pero no verificable, lo que lo dejaría fuera de la definición de escenario de calidad medible.
+
+### 14.3 Sistemas IoT y computación en el borde
+
+#### 14.3.1 Aplicabilidad
+
+SeniorCareHub pertenece al dominio de Internet de las Cosas, y conviene declararlo sin ambigüedad aunque el dispositivo esté simulado. La estructura del sistema es la canónica de una solución IoT: dispositivos en el extremo que emiten telemetría continua sobre el mundo físico —movimiento, inactividad, ubicación de una persona—, una capa de ingesta que autentica y valida esa telemetría, un procesamiento de eventos en la nube y una capa de actuación hacia humanos mediante notificaciones. La simulación sustituye al hardware, no al dominio: ninguna decisión arquitectónica del documento cambiaría si el emisor fuera un dispositivo físico, porque la frontera del sistema se definió desde §7.1 tratando al wearable como un sistema externo que se comunica por un protocolo declarado.
+
+La pertenencia al dominio no es una observación tardía: la presencia de un asunto clave de diseño de esta categoría formó parte de los criterios de complejidad con los que se aprobó la propuesta del proyecto.
+
+#### 14.3.2 Posición actual: borde delgado deliberado
+
+En la arquitectura entregada, el borde es deliberadamente delgado: el dispositivo emite y nada más. Toda la inteligencia —validación semántica, evaluación de reglas, confirmación, deduplicación— reside en la nube. Esta posición, reconocida en §14.1.5 como límite del diseño distribuido, es una decisión y no una omisión, sostenida por tres razones.
+
+Primero, la modificabilidad de QA-05: las reglas cambian en caliente precisamente porque viven como datos en un único lugar (ADR-002). Repartir lógica de detección hacia el dispositivo fragmentaría esa propiedad, obligando a sincronizar versiones de reglas entre la nube y una flota de dispositivos con conectividad intermitente. Segundo, la auditabilidad exigida por REST-02: cada alerta registra la versión de reglas que la evaluó, garantía trivial cuando la evaluación es centralizada y costosa cuando se distribuye. Tercero, el alcance: con un emisor simulado, cualquier lógica de borde sería software especulativo sin hardware que lo valide.
+
+#### 14.3.3 Qué migraría al borde con dispositivos reales
+
+Un despliegue con wearables físicos exigiría revisar la posición anterior, porque aparecen restricciones que el simulador no impone: batería, conectividad intermitente y el costo de transmitir todo. La evolución razonable, ya anticipada en §15.2, repartiría las responsabilidades así:
+
+| Permanece en la nube | Migraría al borde |
+|---|---|
+| Evaluación de reglas configurables y su versionado | Filtrado de telemetría irrelevante (muestreo, agregación) para ahorrar batería y ancho de banda |
+| Ventana de confirmación, correlación y deduplicación | Detección local de las condiciones de criticidad inmediata (caída), para alertar aun sin conectividad |
+| Gestión de perfiles, canales y destinatarios | Almacenamiento temporal y reenvío de eventos durante pérdidas de cobertura (store-and-forward) |
+| Historial, auditoría y trazabilidad | Señalización local a la persona (vibración, sonido) como canal de última instancia |
+
+El criterio de reparto es explícito: al borde va lo que depende de la inmediatez o de la autonomía ante desconexión; en la nube queda lo que depende de la configurabilidad, la correlación entre eventos o la auditoría. La detección local de caídas es el caso más claro de migración: es la situación donde esperar el viaje a la nube cuesta más y donde la regla es más estable —una caída es una caída, con cualquier versión de configuración.
+
+#### 14.3.4 Costos que introduciría el borde
+
+La migración no sería gratuita, y conviene registrar los costos con la misma honestidad que los beneficios. La lógica de detección quedaría duplicada en dos implementaciones —la del dispositivo y la del Motor de Reglas— que deben mantenerse coherentes, reintroduciendo el problema de sincronización que la centralización evita hoy. La actualización del software del dispositivo se convertiría en una operación de despliegue adicional, con su propio ciclo de versiones y sus fallos parciales. Y la garantía de aceptación durable documentada en §7.3.1 y ADR-005 tendría que extenderse al tramo dispositivo-nube mediante confirmaciones y reenvío, tramo que hoy queda fuera de las garantías verificadas según se reconoce en §14.1.5.
+
+Ninguno de estos costos invalida la evolución: la acota. El estilo orientado a eventos la absorbe sin cambio estructural —el borde se convierte en un productor más inteligente, pero el transporte, la confirmación y el despacho permanecen idénticos—, lo que confirma la conclusión de §15.5 sobre la estabilidad de la decisión registrada en ADR-001.
+
+### 14.4 Sistemas con IA Generativa / Agentes
+
+Este asunto clave de diseño **no aplica** porque SeniorCareHub no incorpora modelos de lenguaje, agentes autónomos ni ningún componente de IA generativa en su arquitectura actual. El término "inteligente" que describe al sistema en la sección 1.2 se refiere a la capacidad de interpretar eventos y aplicar reglas configurables, no a aprendizaje automático ni a razonamiento por modelos generativos. ADR-002 refuerza esta exclusión de forma deliberada: se evaluó y rechazó un motor de reglas completamente dinámico o un DSL arbitrario precisamente porque aumentaba la complejidad, los riesgos de seguridad y la dificultad de validación sin aportar un beneficio claro para el alcance del proyecto. El Motor de Reglas se implementa mediante el patrón Strategy sobre un conjunto controlado de evaluadores (`FallRuleEvaluator`, `InactivityRuleEvaluator`, `SafeZoneRuleEvaluator`), cuyo comportamiento es determinístico y auditable, solo evalúa condiciones parametrizadas.
+
+### 14.5 Sistemas con seguridad crítica
+
+SeniorCareHub requiere un análisis explícito de seguridad porque procesa información personal y sensible asociada a personas adultas mayores incluyendo identidad, ubicación, actividad y estado de monitoreo, por esta razón está sujeto a la restricción regulatoria REST-02 basada en la Ley N.° 8968 y posee superficies de ataque cuyo compromiso podría exponer información sensible, modificar configuraciones de monitoreo o interferir con la generación y entrega de alertas.
+
+La aplicación de esta sección no implica clasificar SeniorCareHub como un sistema médico o clínico. El alcance del proyecto excluye diagnóstico médico, interpretación clínica especializada y atención directa de emergencias. El análisis se concentra en la protección de información sensible, la integridad de la configuración, la disponibilidad del pipeline de alertas y la trazabilidad de las operaciones.
+
+#### 14.5.1 Modelo de amenazas — STRIDE simplificado
+
+| Amenaza | Componente en riesgo | Mitigación en el diseño | Riesgo residual / estado |
+|---|---|---|---|
+| **Spoofing — Suplantación de identidad** | Servicio de Ingesta; API de Aplicación | El Servicio de Ingesta autentica al emisor mediante `IEventSourceAuthenticator` antes de aceptar un evento (§10.3.2). La API de Aplicación tiene como responsabilidad autenticar al usuario antes de exponer operaciones (§7.2.1). Las conexiones externas utilizan HTTPS/TLS (§7.2.2). | El mecanismo concreto de autenticación de usuarios finales todavía debe especificarse. Las identidades administradas de Microsoft Entra ID descritas en §7.4.2 resuelven autenticación servicio-a-servicio, no identidad de usuarios finales. |
+| **Tampering — Alteración de información** | Eventos recibidos; configuración de perfiles, reglas, destinatarios y canales | TLS protege la información en tránsito. `IngestionEventValidator` valida la estructura técnica antes de aceptar eventos. En Gestión de Configuración, las modificaciones requieren un usuario autorizado y una nueva `ProfileConfigurationVersion` debe superar `ProfileConfigurationValidator` antes de persistirse y activarse mediante `SaveAndActivateAsync`. La nueva versión y su `ConfigurationAuditEntry` se almacenan de forma atómica; una falla conserva activa la versión anterior. | TLS no protege contra modificaciones realizadas por un actor legítimo pero indebidamente autorizado. La efectividad depende de que las políticas de autorización por rol y relación queden correctamente implementadas. |
+| **Repudiation — Repudio de acciones** | Cambios de configuración; accesos a datos; intentos de notificación | Los cambios de configuración generan `ConfigurationAuditEntry`; cada intento de notificación se registra mediante `NotificationAttempt`; QS-04 exige registrar intentos de acceso con actor, recurso, acción, decisión, motivo, origen y `correlationId`. Las alertas conservan además la versión de configuración utilizada, permitiendo reconstruir la decisión que las produjo. | Debe definirse la política de retención, protección contra alteración y consulta de la bitácora. `EventId` e idempotencia aportan trazabilidad operacional, pero no constituyen por sí mismos un mecanismo completo de no repudio. |
+| **Information Disclosure — Divulgación de información** | BD Operativa, Almacén de Eventos, Bus de Mensajería y frontera con proveedores externos | El diseño exige cifrado en tránsito; §8.4 establece minimización del contenido sensible y protección en reposo; la API aplica autorización por rol y relación; Managed Identity y Key Vault reducen exposición de credenciales técnicas. El Servicio de Notificaciones concentra la salida hacia terceros mediante `INotificationAdapter`, permitiendo controlar qué información abandona SeniorCareHub. | El cifrado en reposo está requerido por el diseño, pero su configuración concreta debe verificarse en despliegue. También debe definirse qué campos pueden enviarse a cada proveedor externo. REST-01 implica que dichos proveedores permanecen fuera del control directo del sistema. |
+| **Denial of Service — Denegación de servicio** | Servicio de Ingesta y API de Aplicación | El intermediario durable desacopla la velocidad de consumo de la recepción y permite absorber temporalmente acumulación de trabajo después de que un evento ha sido aceptado. Los servicios pueden escalar de forma independiente dentro de los límites definidos en despliegue. | El Bus no protege directamente los endpoints HTTP frente a abuso o tráfico volumétrico. El diseño todavía no especifica `rate limiting`, `throttling` ni un control equivalente en API e Ingesta. Además, API e Ingesta comparten actualmente un App Service Plan B1. |
+| **Elevation of Privilege — Elevación de privilegios** | API de Aplicación y operaciones de configuración | QS-04 y el principio de menor privilegio exigen autorización por rol y por relación con el adulto mayor. El Componente 4 exige que `PublishNewVersionAsync(request, userContext)` reciba un contexto de usuario autenticado y autorizado antes de modificar una configuración. | El mecanismo concreto de autorización de usuarios finales todavía debe detallarse: proveedor de identidad, representación de roles, relación cuidador/familiar–adulto mayor y evaluación de políticas. |
+
+#### Observaciones sobre las amenazas prioritarias
+
+Las amenazas con mayor impacto sobre el diseño son **Information Disclosure**, **Elevation of Privilege**, **Tampering** y **Denial of Service**.
+
+La divulgación de información es especialmente relevante porque SeniorCareHub procesa identidad, ubicación, actividad y estado de monitoreo de personas adultas mayores. El control de acceso debe considerar no solo el rol del usuario, sino también su relación con la persona monitoreada:
+
+```text
+Autenticación
+      ↓
+¿Quién es el actor?
+      ↓
+Autorización por rol
+      ↓
+¿Puede realizar esta operación?
+      ↓
+Autorización por relación
+      ↓
+¿Puede realizarla sobre ESTE adulto mayor?
+      ↓
+Acceso autorizado
+```
+
+La alteración de configuración también tiene impacto directo sobre el comportamiento del sistema. El Componente 4 reduce este riesgo mediante versionado, validación y activación atómica:
+
+```text
+Solicitud de cambio
+      ↓
+Autorización
+      ↓
+ProfileConfigurationVersion
+      ↓
+ProfileConfigurationValidator
+      ↓
+SaveAndActivateAsync
+      ↓
+ConfigurationAuditEntry
+```
+
+Una falla durante la persistencia no debe dejar una configuración parcialmente activa.
+
+Finalmente, frente a Denial of Service, la mensajería durable protege principalmente el desacoplamiento posterior a la aceptación de un evento. No debe confundirse con un mecanismo de protección del borde HTTP; esa capacidad permanece como riesgo abierto.
+
+#### 14.5.2 Controles por capa
+
+La estrategia sigue el principio de **Defense in Depth**, distribuyendo responsabilidades de protección entre varias fronteras del sistema.
+
+| Capa | Control | Evidencia | Estado |
+|---|---|---|---|
+| **Borde — API de Aplicación** | Autenticación de usuarios | Responsabilidad del Contenedor 2 (§7.2.1) | **Responsabilidad definida; mecanismo concreto pendiente** |
+| **Borde — API de Aplicación** | Autorización por rol y relación | QS-04; principio de menor privilegio; contratos de §10.4 | **Requerida por diseño; política detallada pendiente** |
+| **Borde — Servicio de Ingesta** | Autenticación de la fuente | `IEventSourceAuthenticator` (§10.3.2) | **Diseñado** |
+| **Borde — Servicio de Ingesta** | Validación técnica del evento | `IngestionEventValidator` (§10.3.2/§10.3.3) | **Diseñado** |
+| **Transporte** | TLS en comunicaciones externas e internas | HTTPS/TLS, AMQP 1.0/TLS y PostgreSQL/TLS (§7.2.2) | **Definido arquitectónicamente** |
+| **Lógica de aplicación** | Validación y activación coherente de configuración | `ProfileConfigurationValidator`, `SaveAndActivateAsync` (§10.4) | **Diseñado** |
+| **Lógica de aplicación** | Idempotencia y deduplicación | `EventId` único en Ingesta, `DeduplicationService` en Motor de Reglas, tracking previo en Notificaciones | **Diseñado** |
+| **Datos** | Cifrado en reposo | Requerido por QA-04 y §8.4 | **Requerido; configuración concreta pendiente** |
+| **Datos** | Minimización de información transportada | Criterio establecido en §8.4 | **Definido como criterio; contratos finales deben validarlo** |
+| **Datos / Mensajería** | Separación de eventos crudos y alertas confirmadas | Tópicos distintos en §7.5 | **Diseñado funcionalmente; no equivale por sí solo a clasificación por sensibilidad** |
+| **Auditoría** | Registro de cambios de configuración | `ConfigurationAuditEntry` (§10.4) | **Diseñado** |
+| **Auditoría** | Registro de intentos de entrega | `NotificationAttempt` (§10.2) | **Diseñado** |
+| **Auditoría** | Registro de intentos de acceso | QS-04 | **Requerido; implementación concreta pendiente** |
+| **Infraestructura** | Identidades administradas | §7.4.2 | **Definido en despliegue** |
+| **Infraestructura** | Gestión de secretos | Azure Key Vault (§7.4) | **Definido en despliegue** |
+| **Protección DoS** | `Rate limiting` / `throttling` | No definido actualmente | **Pendiente** |
+
+## 15. Tendencias y evolución
+
+### 15.1 Criterio de selección
+
+Una sección de tendencias tiene poco valor si enumera tecnologías de moda sin relación con el sistema analizado. El criterio aplicado aquí es distinto: se incluyen únicamente aquellas tendencias que, de consolidarse, **modificarían una decisión ya tomada en este documento**. Cada apartado señala qué decisión pondría en cuestión y qué evidencia justificaría revisarla.
+
+### 15.2 Tendencias con impacto sobre la arquitectura
+
+#### Detección basada en modelos de aprendizaje automático
+
+El sistema detecta situaciones críticas mediante reglas configuradas con parámetros explícitos (ADR-002). La alternativa emergente es sustituir o complementar esas reglas con modelos entrenados sobre patrones de movimiento, capaces de reconocer situaciones que ninguna regla anticipó y de reducir falsas alarmas mediante el reconocimiento del comportamiento habitual de cada persona.
+
+El trade-off es de explicabilidad. Una regla puede responder por qué generó una alerta: el umbral de inactividad se superó durante un intervalo determinado. Un modelo entrega una puntuación sin justificación equivalente. En un dominio donde una alerta desencadena la intervención sobre una persona vulnerable, y donde la trazabilidad de la decisión es exigible ante una disputa, la explicabilidad no es una preferencia estética sino un requisito. A ello se suma que los marcos regulatorios sobre decisiones automatizadas que afectan a personas avanzan hacia mayores obligaciones de transparencia, lo que interactúa directamente con REST-02.
+
+El propio ADR-003 ya prevé esta revisión al establecer que corresponde reconsiderar la decisión si las métricas muestran que las reglas configurables no alcanzan la exactitud necesaria. La evolución razonable no es sustituir las reglas sino añadir un modelo como señal adicional dentro de la etapa de confirmación, conservando la regla como criterio auditable.
+
+#### Procesamiento en el borde
+
+Actualmente todo evento viaja íntegro a la nube antes de ser evaluado, incluidos los que ninguna regla llegará a considerar. La tendencia hacia el procesamiento en el dispositivo permitiría filtrar localmente, detectar en el borde las condiciones más críticas y transmitir solo lo relevante.
+
+El impacto sobre la arquitectura sería significativo: reduciría el volumen transportado, disminuiría la dependencia de la conectividad —hoy un supuesto no verificado, según se reconoce en §14.1.5— y acortaría la latencia de las alertas más urgentes al eliminar el trayecto de ida hacia la nube. La contrapartida es que la lógica de detección se fragmentaría entre el dispositivo y el servidor, con el consiguiente problema de mantener sincronizadas dos implementaciones de la misma regla y de actualizar el software del dispositivo. Las implicaciones se desarrollan en §14.3.
+
+#### Registro de eventos como fuente de verdad
+
+El Almacén de Eventos ya conserva el historial completo de lo recibido, lo que aproxima al sistema a un modelo donde el registro de eventos es la fuente primaria y los estados derivados se reconstruyen a partir de él. Adoptarlo formalmente permitiría reprocesar el historial con reglas nuevas —por ejemplo, para evaluar si una regla propuesta habría detectado un incidente pasado— y auditar cualquier alerta reconstruyendo el contexto exacto que la originó.
+
+Es la evolución más natural del diseño actual porque no exige cambiar el estilo: el intermediario y el almacén ya están en su lugar. Lo que cambiaría es el tratamiento de la BD Operativa, que pasaría de fuente de verdad a proyección reconstruible.
+
+#### Reducción del costo de arranque en las plataformas gestionadas
+
+La decisión de mantener una réplica permanentemente activa (§7.4.2) responde a que el arranque en frío consume el presupuesto de latencia de QS-02. Es una decisión condicionada por el estado actual de la tecnología, no por una propiedad del dominio. Si las plataformas de ejecución bajo demanda reducen ese tiempo a magnitudes despreciables frente al presupuesto disponible, la decisión debe revisarse: se recuperaría el costo nulo en reposo sin sacrificar latencia. Es la tendencia con el camino de adopción más corto de todas las señaladas.
+
+#### Interoperabilidad con sistemas clínicos
+
+El sistema opera hoy de forma aislada respecto del ecosistema de salud. La adopción creciente de estándares de interoperabilidad para el intercambio de información clínica abre la posibilidad de que el historial de eventos y alertas se integre con expedientes médicos o con servicios de atención domiciliaria. Ese cambio no afectaría el camino crítico, pero sí exigiría revisar el modelo de datos y, sobre todo, el régimen de consentimiento y de tratamiento de datos personales, dado que el destinatario dejaría de ser un familiar para ser una institución.
+
+### 15.3 Evolución prevista del sistema
+
+| Horizonte | Evolución | Efecto sobre la arquitectura |
+|---|---|---|
+| Corto plazo | Instrumentar y validar QS-02 con mediciones reales; sustituir el simulador por dispositivos físicos | Ninguno estructural. Confirma o refuta el presupuesto de latencia estimado en §14.2.3 |
+| Corto plazo | Incorporar canales de notificación adicionales | Ninguno: se resuelve agregando adaptadores según ADR-004 |
+| Mediano plazo | Preprocesamiento en el borde | Nuevo componente en el dispositivo; la lógica de detección se reparte |
+| Mediano plazo | Operación multiinquilino para organizaciones de cuidado | Aislamiento de datos por inquilino; afecta el modelo de datos y la autorización, no el estilo |
+| Largo plazo | Detección asistida por modelos con explicabilidad | Nuevo evaluador dentro del Motor de Reglas; el contrato de la interfaz de evaluación se mantiene |
+| Largo plazo | Despliegue multirregión | Revisión completa de §7.4: replicación de datos y consistencia entre regiones |
+
+### 15.4 Condiciones que obligarían a revisar la arquitectura
+
+Siguiendo el criterio de los ADR, conviene declarar de forma explícita qué evidencia obligaría a reabrir las decisiones estructurales:
+
+- Que la medición demuestre que el percentil 95 de latencia excede los cinco segundos de forma sostenida, y que el análisis atribuya la causa al procesamiento interno y no al proveedor externo.
+- Que el número de adultos mayores con eventos simultáneos supere el techo de paralelismo impuesto por el particionamiento por sesión (§7.5.3).
+- Que el dominio exija garantías temporales duras en lugar de estadísticas, lo que invalidaría la clasificación de tiempo real blando de §14.2.2.
+- Que aparezca un requisito de continuidad ante caída regional, que la decisión de zona única no puede satisfacer.
+- Que los usuarios necesiten expresar reglas arbitrarias fuera del conjunto de evaluadores disponibles, condición ya prevista en ADR-002.
+
+### 15.5 Lo que permanecería
+
+Conviene cerrar señalando qué resistiría a todas las evoluciones anteriores. El estilo orientado a eventos con intermediario durable sobrevive a cada uno de los escenarios planteados: el procesamiento en el borde cambia dónde se origina el evento pero no cómo se transporta; los modelos de aprendizaje cambian cómo se evalúa pero no dónde; la interoperabilidad clínica agrega consumidores sin modificar productores. Esa estabilidad es, en sí misma, evidencia a favor de la decisión registrada en ADR-001: un estilo cuya vigencia no depende de qué tecnología se imponga en la siguiente década.
+
+La frontera de puertos y adaptadores adoptada en §8.1 cumple una función equivalente en la dimensión tecnológica: absorbe el cambio de proveedores, de canales y eventualmente de plataforma de mensajería sin propagarlo hacia la lógica de detección, que es donde reside el valor del sistema.
+ 
+---
+
+# APÉNDICES
+
+## 16. Glosario
+El glosario define el lenguaje ubicuo utilizado en SeniorCareHub. Los términos se presentan según el significado que tienen dentro del proyecto y no necesariamente como definiciones generales aplicables a cualquier sistema.
+
+| Término | Definición |
+|---|---|
+| **Aceptación durable** | Momento a partir del cual SeniorCareHub considera que un evento ha quedado almacenado de forma persistente y puede recuperarse después de una falla. En el Servicio de Ingesta se logra al confirmar la transacción que almacena `MonitoringEvent` junto con su `OutboxMessage`. QS-02 mide la latencia a partir de este punto. |
+| **ADR (Architecture Decision Record)** | Documento que registra una decisión arquitectónica significativa, su contexto, alternativas evaluadas, consecuencias y condiciones de revisión (§9). |
+| **Adulto Mayor** | Usuario final monitoreado por SeniorCareHub. Puede consultar su propio estado e historial mediante la App Web y se encuentra asociado a un perfil individual de monitoreo. |
+| **Alerta** | Resultado confirmado del Motor de Reglas cuando uno o más eventos cumplen una condición de riesgo según las reglas y criterios de confirmación aplicables. La alerta se publica hacia el Servicio de Notificaciones y conserva trazabilidad hacia los eventos y la versión de configuración utilizados. |
+| **AMQP (Advanced Message Queuing Protocol)** | Protocolo de mensajería utilizado entre los servicios internos y Azure Service Bus. SeniorCareHub utiliza AMQP 1.0 sobre TLS (§7.2.2). |
+| **At-least-once** | Semántica de entrega en la que un mensaje puede entregarse una o más veces hasta que el consumidor confirma su procesamiento. Obliga a que los consumidores sean idempotentes y toleren reentregas. |
+| **Atributo de calidad** | Propiedad medible del sistema que condiciona decisiones arquitectónicas. Los atributos prioritarios de SeniorCareHub son disponibilidad, rendimiento, resiliencia, seguridad/privacidad y modificabilidad (QA-01 a QA-05). |
+| **Autorización por relación** | Regla de autorización según la cual un actor no obtiene acceso únicamente por poseer un rol válido, sino también por mantener una relación autorizada con el adulto mayor sobre el que intenta consultar o modificar información (QS-04). |
+| **Bitácora de auditoría** | Registro persistente de accesos, cambios y acciones relevantes. QS-04 exige registrar datos como actor, recurso, acción, decisión, motivo, origen y `correlationId`, evitando almacenar innecesariamente el contenido sensible consultado. |
+| **Bus de Mensajería** | Contenedor de infraestructura basado en Azure Service Bus que transporta eventos y alertas entre etapas del pipeline mediante mensajería asíncrona y durable. Proporciona tópicos, suscripciones, reintentos, sesiones y cola de mensajes muertos (§7.2). |
+| **C4 (modelo)** | Modelo de visualización arquitectónica por niveles de abstracción utilizado en SeniorCareHub. El documento emplea contexto o Nivel 1 (§7.1), contenedores o Nivel 2 (§7.2) y componentes o Nivel 3 (§7.7). La vista de despliegue (§7.4) complementa estos niveles mostrando dónde se ejecutan los contenedores. |
+| **Canal de notificación** | Medio utilizado para comunicar una alerta a un destinatario, por ejemplo SMS, correo electrónico o mensajería. Los canales se habilitan y priorizan mediante configuración. |
+| **Cola de mensajes muertos (Dead-Letter Queue / DLQ)** | Mecanismo del intermediario de mensajería que retiene mensajes que no pudieron procesarse correctamente después de aplicar la política configurada de reintentos o que deben separarse para intervención posterior. |
+| **ConfirmationState** | Estado durable utilizado por el Motor de Reglas para conservar una ventana de confirmación pendiente. Permite correlacionar eventos y recuperar el procesamiento después de un reinicio (§7.5.3, §10.1). |
+| **Consistencia eventual** | Modelo en el que un cambio puede no ser visible inmediatamente en todos los componentes del sistema, pero se propaga posteriormente. Es una consecuencia asumida del estilo orientado a eventos (§8.4). |
+| **correlationId** | Identificador propagado entre servicios, mensajes y registros para relacionar las operaciones que pertenecen al mismo flujo distribuido y reconstruir el recorrido de un evento o alerta. |
+| **Cuidador Profesional** | Usuario que supervisa a uno o varios adultos mayores, consulta estado e historial, recibe alertas y puede ajustar configuraciones cuando posee autorización. |
+| **DeadLetter** | Estado asociado al procesamiento fallido de un mensaje cuando este termina en la cola de mensajes muertos del broker. Debe distinguirse de los estados internos de una `Notification`; representa principalmente la situación del mensaje en la infraestructura de mensajería. |
+| **Deduplicación** | Mecanismo para detectar trabajo ya procesado o efectos equivalentes. En Ingesta se apoya en la unicidad de `EventId`; en el Motor de Reglas evita generar alertas equivalentes; en Notificaciones se consulta el tracking previo antes de repetir deliberadamente una entrega. |
+| **Defense in Depth** | Principio de seguridad según el cual la protección se distribuye en varias capas independientes, como autenticación, autorización, TLS, auditoría, protección de datos e identidades administradas (§6, §14.5). |
+| **DeliveryPolicyResolver** | Colaborador del Servicio de Notificaciones que determina qué `IChannelDeliveryStrategy` aplicar según la severidad de la alerta y la política configurada para el perfil (§10.2). |
+| **Escenario de calidad** | Descripción medible de cómo debe responder el sistema ante un estímulo. En SeniorCareHub los escenarios QS-01 a QS-05 se estructuran con fuente del estímulo, estímulo, entorno, artefacto, respuesta y medida de respuesta (§4). |
+| **Estado de notificación** | Estado durable que representa el avance de una `Notification`, por ejemplo `Delivered`, `PendingRetry` o `FallbackInProgress`. El estado del mensaje en la DLQ debe tratarse separadamente como `DeadLetter`. |
+| **Evento de monitoreo (`MonitoringEvent`)** | Registro individual emitido por una fuente de monitoreo y aceptado por el Servicio de Ingesta. Contiene la información mínima necesaria para que el Motor de Reglas determine si existe una situación de riesgo. |
+| **Fallback** | Mecanismo de degradación controlada mediante el cual, si el canal o proveedor prioritario falla, el Servicio de Notificaciones intenta un canal alternativo aplicable según la política configurada (QS-03, ADR-004). |
+| **Falsa alarma** | Alerta que, después de revisión humana, no corresponde a una emergencia real. SeniorCareHub reduce su probabilidad mediante correlación, ventanas de confirmación y deduplicación, sin afirmar que puede eliminarlas por completo. |
+| **Idempotencia** | Propiedad por la que repetir una operación con la misma entrada no debería producir un efecto de negocio adicional no deseado. Es necesaria debido a la semántica *at-least-once*. |
+| **Identidades administradas (Managed Identities)** | Mecanismo de Microsoft Entra ID utilizado para que servicios de Azure accedan a otros recursos sin almacenar credenciales técnicas directamente en la configuración. Resuelve autenticación servicio-a-servicio, no autenticación de usuarios finales (§7.4.2, §14.5). |
+| **INotificationAdapter** | Interfaz interna que normaliza la comunicación con proveedores externos de notificación y evita que sus APIs particulares se propaguen hacia la lógica de negocio (§10.2). |
+| **IRuleEvaluator** | Interfaz del patrón Strategy utilizada por el Motor de Reglas para evaluar diferentes tipos de reglas mediante implementaciones especializadas como `FallRuleEvaluator`, `InactivityRuleEvaluator` y `SafeZoneRuleEvaluator`. |
+| **Menor privilegio (Principle of Least Privilege)** | Principio según el cual un actor o servicio recibe únicamente los permisos necesarios para cumplir su responsabilidad. En la API implica autorización por rol y por relación con el adulto mayor. |
+| **Modificabilidad** | Atributo de calidad QA-05 que expresa la capacidad de cambiar parámetros, perfiles, canales y destinatarios soportados sin recompilar ni redesplegar el núcleo del sistema. |
+| **Motor de Reglas** | Contenedor responsable de consumir eventos, recuperar la configuración aplicable, evaluarlos mediante reglas, aplicar confirmación y deduplicación y generar alertas confirmadas (§7.2, §10.1). |
+| **Notificación (`Notification`)** | Representación del proceso de comunicar una alerta a un destinatario. Conserva su estado global y se relaciona con uno o más `NotificationAttempt`. Una alerta puede originar varias notificaciones para distintos destinatarios. |
+| **NotificationAttempt** | Registro durable de un intento individual de entregar una notificación mediante un canal y proveedor determinados. Conserva fecha, resultado, proveedor, información de falla y datos necesarios para trazabilidad (§10.2). |
+| **OutboxMessage** | Registro durable que representa la intención de publicar posteriormente un evento aceptado hacia el Bus de Mensajería. Se almacena en la misma transacción que `MonitoringEvent`. |
+| **Particionamiento por sesión** | Estrategia de concurrencia que utiliza sesiones del Bus de Mensajería para mantener orden y exclusividad de procesamiento por adulto mayor sin utilizar bloqueos explícitos en el código (§7.5). |
+| **Perfil de monitoreo** | Configuración individual asociada a un adulto mayor que contiene parámetros de monitoreo y reglas aplicables. Forma parte de la configuración versionada utilizada por el Motor de Reglas. |
+| **ProfileVersion** | Identificador de la versión de configuración utilizada durante una evaluación. La versión aplicada debe quedar registrada en la alerta para permitir trazabilidad y para que etapas posteriores recuperen la configuración correspondiente. |
+| **Proveedor externo de notificación** | Servicio fuera del control de SeniorCareHub que realiza la entrega efectiva por SMS, correo o mensajería. Sus contratos y fallos se aíslan mediante `INotificationAdapter` (REST-01, ADR-004). |
+| **Publicación-suscripción (Publish-Subscribe)** | Estilo de mensajería donde los productores publican mensajes en un intermediario y los consumidores los reciben mediante suscripciones, sin que exista una dependencia directa entre productor y consumidor. |
+| **Regla de monitoreo (`MonitoringRule`)** | Configuración que define una condición evaluable sobre un evento, por ejemplo umbral de inactividad, condición de caída o salida de zona segura. |
+| **Resiliencia / Tolerancia a fallos** | Atributo de calidad QA-03 que expresa la capacidad del sistema de conservar trabajo, recuperarse de fallos parciales y evitar la pérdida silenciosa de eventos y alertas. |
+| **Servicio de Ingesta** | Contenedor responsable de autenticar la fuente, validar técnicamente el evento y garantizar su aceptación durable. La publicación posterior al Bus se desacopla mediante Transactional Outbox (§10.3). |
+| **Servicio de Notificaciones** | Contenedor responsable de consumir alertas confirmadas, resolver destinatarios y canales, aplicar una política de entrega, invocar proveedores externos y registrar los resultados de cada intento (§10.2). |
+| **Situación de riesgo** | Condición detectada a partir de uno o más eventos que, después de evaluación y cuando corresponda confirmación, amerita generar una alerta. |
+| **Strategy** | Patrón de diseño que encapsula algoritmos intercambiables detrás de una interfaz común. SeniorCareHub lo utiliza para evaluadores de reglas y estrategias de entrega de notificaciones (§11). |
+| **STRIDE** | Modelo de clasificación de amenazas que agrupa Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service y Elevation of Privilege. Se utiliza en §14.5. |
+| **Transactional Outbox** | Patrón de integración que persiste el cambio de negocio y la intención de publicar un mensaje dentro de la misma transacción local. En SeniorCareHub se aplica al guardar `MonitoringEvent` y `OutboxMessage`, mientras `OutboxPublisher` realiza la publicación posteriormente (§10.3, §11). |
+| **Ventana de confirmación** | Período configurable durante el cual el Motor de Reglas conserva y correlaciona eventos antes de confirmar una situación de riesgo. Reduce falsas alarmas a cambio de consumir parte del presupuesto de latencia (ADR-003). |
+| **Versionado de configuración** | Estrategia por la cual una modificación crea una nueva versión identificable en lugar de sobrescribir la anterior, permitiendo auditoría y trazabilidad de la configuración utilizada (ADR-002, QS-05). |
+| **Wearable simulado** | Sistema externo que representa al dispositivo de monitoreo y emite eventos simulados de movimiento, inactividad, ubicación u otras condiciones definidas por el proyecto. No se utiliza hardware físico real (REST-03). |
+| **Zona segura** | Área geográfica configurada como perímetro esperado para un adulto mayor. Las reglas relacionadas se evalúan mediante `SafeZoneRuleEvaluator`. |
+
+---
+
+## 17. Referencias
+
+Las referencias se presentan en formato APA y se limitan a fuentes utilizadas para fundamentar conceptos, patrones, decisiones o tecnologías mencionadas en el documento.
+
+### 17.1 Arquitectura y diseño de software
+
+- Bass, L., Clements, P., & Kazman, R. (2021). *Software Architecture in Practice* (4th ed.). Addison-Wesley.
+
+- Brown, S. (2014). *Software Architecture for Developers*. Leanpub.
+
+- Brown, S. (s. f.). *The C4 model for visualising software architecture*. https://c4model.com/
+
+- Budgen, D. (2003). *Software Design* (2nd ed.). Addison-Wesley.
+
+- Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1995). *Design Patterns: Elements of Reusable Object-Oriented Software*. Addison-Wesley.
+
+- Gomaa, H. (2011). *Software Modeling and Design: UML, Use Cases, Patterns, and Software Architectures*. Cambridge University Press.
+
+### 17.2 Patrones empresariales e integración
+
+- Fowler, M. (2002). *Patterns of Enterprise Application Architecture*. Addison-Wesley.
+
+- Hohpe, G., & Woolf, B. (2003). *Enterprise Integration Patterns: Designing, Building, and Deploying Messaging Solutions*. Addison-Wesley.
+
+- Richardson, C. (2018). *Microservices Patterns: With Examples in Java*. Manning Publications.
+
+
+### 17.3 Seguridad y privacidad
+
+- Asamblea Legislativa de la República de Costa Rica. (2011, 5 de setiembre). *Ley N.° 8968: Protección de la Persona frente al Tratamiento de sus Datos Personales*. *La Gaceta*, n.° 170, San José, Costa Rica.
+
+- Shostack, A. (2014). *Threat Modeling: Designing for Security*. Wiley.
+
+### 17.4 Documentación técnica de Microsoft Azure
+
+- Microsoft. (s. f.). *Azure Service Bus documentation*. Microsoft Learn. https://learn.microsoft.com/azure/service-bus-messaging/
+
+- Microsoft. (s. f.). *Azure Database for PostgreSQL documentation*. Microsoft Learn. https://learn.microsoft.com/azure/postgresql/
+
+- Microsoft. (s. f.). *Managed identities for Azure resources*. Microsoft Learn. https://learn.microsoft.com/entra/identity/managed-identities-azure-resources/
+
+
+
 *Documento generado bajo el template estándar PSWE-04 — Universidad Cenfotec — Maestría Profesional en Ingeniería del Software*

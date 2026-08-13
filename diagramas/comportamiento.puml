@@ -1,0 +1,144 @@
+' =====================================================================
+' SeniorCareHub - Vista de comportamiento (nivel de contenedores)
+' PSWE-04 - Avance 3 (S14)
+' Contiene tres diagramas de secuencia de sistema.
+' Render: PlantUML estandar. Genera tres imagenes independientes.
+' =====================================================================
+
+@startuml comportamiento-01-evento-critico
+skinparam backgroundColor transparent
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 12
+
+title Flujo 1 - Deteccion y notificacion de un evento critico (QS-02)
+
+participant "Wearable\nsimulado" as WE
+participant "Servicio de\nIngesta" as ING
+database "Almacen de\nEventos" as BDE
+queue "Bus de\nMensajeria" as BUS
+participant "Motor de\nReglas" as MR
+database "BD\nOperativa" as BDO
+participant "Servicio de\nNotificaciones" as SN
+participant "Proveedores\nexternos" as PR
+actor "Familiar" as FA
+
+WE -> ING: Emitir evento de caida (HTTPS/TLS)
+ING -> ING: Autenticar dispositivo y validar estructura
+ING -> BDE: Persistir evento + OutboxMessage (transaccion local, ADR-005)
+ING --> WE: Aceptado (aceptacion durable tras el commit)
+ING -> BUS: Publicar evento crudo via OutboxPublisher, asincrono (SessionId = adulto mayor)
+
+note over ING, BUS
+  La ingesta responde sin esperar la evaluacion.
+  El desacople temporal protege QS-01.
+end note
+
+BUS -> MR: Entregar evento crudo
+MR -> BDO: Leer reglas vigentes y estado de confirmacion
+BDO --> MR: Version de reglas y estado
+MR -> MR: Evaluar. Criticidad inmediata: no requiere ventana
+MR -> BDO: Registrar alerta con version y eventos origen
+MR -> BUS: Publicar alerta confirmada
+MR -> BUS: Completar el evento crudo
+
+BUS -> SN: Entregar alerta confirmada
+SN -> BDO: Leer perfil de notificacion y canales por prioridad
+BDO --> SN: Destinatarios y orden de canales
+SN -> PR: Despachar por el canal de mayor prioridad
+PR --> SN: Aceptado
+PR -> FA: Entregar la alerta
+SN -> BDO: Registrar acuse de entrega
+SN -> BUS: Completar la alerta
+
+note over WE, FA
+  Presupuesto extremo a extremo: 5 s en el percentil 95 (QS-02).
+end note
+
+@enduml
+
+
+@startuml comportamiento-02-fallo-proveedor
+skinparam backgroundColor transparent
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 12
+
+title Flujo 2 - Fallo del proveedor y entrega por canal alterno (QS-03)
+
+queue "Bus de\nMensajeria" as BUS
+participant "Servicio de\nNotificaciones" as SN
+database "BD\nOperativa" as BDO
+participant "Proveedor\nSMS" as P1
+participant "Proveedor\ncorreo" as P2
+actor "Cuidador" as CU
+
+BUS -> SN: Entregar alerta confirmada
+SN -> BDO: Leer canales ordenados por prioridad
+BDO --> SN: SMS, luego correo
+
+SN -> P1: Despachar por SMS
+P1 -->x SN: Sin respuesta dentro del tiempo limite
+SN -> BDO: Registrar intento fallido
+
+note over SN, BUS #FADBD8
+  La alerta sigue bloqueada en el bus, no completada.
+  Mientras no se confirme, no puede perderse.
+end note
+
+SN -> P2: Despachar por el siguiente canal
+P2 --> SN: Aceptado
+P2 -> CU: Entregar la alerta
+SN -> BDO: Registrar acuse con canal efectivo
+SN -> BUS: Completar la alerta
+
+group Todos los canales fallan
+    SN -> BUS: No completar la alerta
+    BUS -> SN: Reentregar tras el intervalo de reintento
+    note over BUS
+      Agotados los reintentos, la alerta pasa a la cola
+      de mensajes muertos para intervencion manual.
+      En ningun caso se descarta.
+    end note
+end
+
+@enduml
+
+
+@startuml comportamiento-03-cambio-regla
+skinparam backgroundColor transparent
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 12
+
+title Flujo 3 - Cambio de una regla de deteccion en operacion (QS-05)
+
+actor "Administrador" as AD
+participant "App Web" as WEB
+participant "API de\nAplicacion" as API
+database "BD\nOperativa" as BDO
+queue "Bus de\nMensajeria" as BUS
+participant "Motor de\nReglas" as MR
+
+AD -> WEB: Modificar umbral de inactividad de un perfil
+WEB -> API: Enviar la configuracion (HTTPS/JSON)
+API -> API: Autorizar por rol y validar la configuracion
+API -> BDO: Guardar como version nueva de la regla
+BDO --> API: Version registrada
+API --> WEB: Confirmacion
+WEB --> AD: Regla vigente
+
+note over API, BDO
+  La regla anterior se conserva. El versionado permite
+  auditar que version evaluo cada alerta (ADR-002).
+end note
+
+BUS -> MR: Entregar el siguiente evento del mismo adulto mayor
+MR -> BDO: Leer reglas vigentes
+BDO --> MR: Version nueva
+MR -> MR: Evaluar con la version nueva
+MR -> BDO: Registrar la evaluacion con la version utilizada
+
+note over MR
+  Sin recompilar, sin redesplegar y sin reiniciar
+  ningun contenedor del sistema.
+end note
+
+@enduml

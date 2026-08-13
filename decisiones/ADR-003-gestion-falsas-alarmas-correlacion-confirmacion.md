@@ -2,8 +2,9 @@
 
 | Campo | Detalle |
 |---|---|
-| **Estado** | Propuesta |
+| **Estado** | Aceptada |
 | **Fecha** | 2026-07-25 |
+| **Última revisión** | 2026-08-10 |
 | **Autores** | Equipo Grupo 3 |
 | **Drivers atendidos** | RF-02, RF-05, QA-02, QA-03 |
 | **Escenarios relacionados** | QS-02, QS-03, QS-05 |
@@ -21,11 +22,14 @@ Se decide incorporar en el Motor de Reglas una etapa de confirmación configurab
 - Correlación de eventos relacionados.
 - Ventanas temporales de confirmación.
 - Deduplicación por adulto mayor, tipo de evento y período.
-- Estado temporal de evaluación por persona monitoreada.
+- Estado persistente de confirmación mediante `ConfirmationState`.
 - Niveles de confianza o criticidad.
 - Políticas diferenciadas según el tipo de evento.
+- Registro de la `ProfileVersion` utilizada.
 
 Los eventos de criticidad inmediata podrán generar una alerta sin esperar una ventana adicional cuando la regla configurada así lo determine. Los eventos ambiguos podrán requerir confirmación mediante eventos posteriores o el cumplimiento de una duración mínima.
+
+`ConfirmationState` se persiste en la BD Operativa. El estado se identifica por el adulto mayor, la regla y la versión de configuración aplicable. Ante un reinicio, la réplica que retoma el procesamiento recupera el último estado confirmado desde la base de datos.
 
 Una alerta confirmada deberá incluir una referencia a los eventos que la originaron y a la versión de reglas utilizada.
 
@@ -46,6 +50,7 @@ Una alerta confirmada deberá incluir una referencia a los eventos que la origin
 - Reduce el riesgo de fatiga de alarmas para cuidadores y familiares.
 
 **Negativas**
+- La persistencia de `ConfirmationState` agrega lecturas/escrituras al camino crítico.
 - Mantener estado temporal incrementa la complejidad del Motor de Reglas.
 - Una ventana de confirmación excesiva puede retrasar alertas reales.
 - Es necesario definir cómo recuperar el estado después de un reinicio.
@@ -53,6 +58,11 @@ Una alerta confirmada deberá incluir una referencia a los eventos que la origin
 
 ## Evidencia y validación
 
+- §7.5 — Vista de concurrencia.
+- §7.5.3 — Persistencia y recuperación de `ConfirmationState`.
+- §10.1.2 — `IConfirmationService` e `IConfirmationStateRepository`.
+- §10.1.4 — Flujo principal y error de persistencia.
+- §13.1 — Validación de QS-02 y QS-03.
 - **Componente:** Motor de Reglas y Generación de Alertas.
 - **Flujo de comportamiento:** correlación de eventos y confirmación de alerta.
 - **Prueba prevista:** simular eventos duplicados, pérdida breve de comunicación y una caída confirmada.
