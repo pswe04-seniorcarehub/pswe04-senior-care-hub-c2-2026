@@ -34,8 +34,8 @@ note over ING, BUS
 end note
 
 BUS -> MR: Entregar evento crudo
-MR -> BDO: Leer reglas vigentes y estado de confirmacion
-BDO --> MR: Version de reglas y estado
+MR -> BDO: Leer perfil aplicable segun ReceivedAt y reglas asociadas
+BDO --> MR: Version aplicable, reglas y estado de confirmacion
 MR -> MR: Evaluar. Criticidad inmediata: no requiere ventana
 MR -> BDO: Registrar alerta con version y eventos origen
 MR -> BUS: Publicar alerta confirmada
@@ -50,8 +50,11 @@ PR -> FA: Entregar la alerta
 SN -> BDO: Registrar acuse de entrega
 SN -> BUS: Completar la alerta
 
-note over WE, FA
-  Presupuesto extremo a extremo: 5 s en el percentil 95 (QS-02).
+note over ING, PR
+  Ventana medida por QS-02:
+  desde la aceptacion durable del evento
+  hasta la aceptacion por el primer proveedor:
+  5 s (p95), 8 s (p99).
 end note
 
 @enduml
@@ -120,8 +123,8 @@ participant "Motor de\nReglas" as MR
 AD -> WEB: Modificar umbral de inactividad de un perfil
 WEB -> API: Enviar la configuracion (HTTPS/JSON)
 API -> API: Autorizar por rol y validar la configuracion
-API -> BDO: Guardar como version nueva de la regla
-BDO --> API: Version registrada
+API -> BDO: Guardar y activar nueva version de configuracion
+BDO --> API: Nueva version activa
 API --> WEB: Confirmacion
 WEB --> AD: Regla vigente
 
@@ -130,10 +133,20 @@ note over API, BDO
   auditar que version evaluo cada alerta (ADR-002).
 end note
 
-BUS -> MR: Entregar el siguiente evento del mismo adulto mayor
-MR -> BDO: Leer reglas vigentes
-BDO --> MR: Version nueva
-MR -> MR: Evaluar con la version nueva
+note over API, MR
+  Eventos aceptados despues de la activacion usan la 
+  nueva version.
+end note
+
+note over API, MR
+  Eventos aceptados antes conservan la version aplicable 
+  segun ReceivedAt.
+end note
+
+BUS -> MR: Entregar evento del mismo adulto mayor
+MR -> BDO: Leer perfil aplicable segun ReceivedAt y reglas asociadas
+BDO --> MR: Version aplicable y reglas  
+MR -> MR: Evaluar con la version aplicable
 MR -> BDO: Registrar la evaluacion con la version utilizada
 
 note over MR

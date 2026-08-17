@@ -13,7 +13,7 @@
 | **Docente** | Juan Mauricio Leandro Jimenez |
 | **Cuatrimestre** | 2026 — II Cuatrimestre |
 | **Versión del documento** | 1.0 — Entrega final (S14) |
-| **Fecha de última actualización** | 2026-08-11 |
+| **Fecha de última actualización** | 2026-08-17 |
 
 ---
 
@@ -276,8 +276,8 @@ Para los fines de este proyecto se identificaron 5 atributos de calidad y sus re
 | **Estímulo** | Modifica los parámetros de una regla previamente soportada, como el tiempo máximo de inactividad, el radio de una zona segura, el nivel de criticidad, la ventana de confirmación o los canales y destinatarios habilitados |
 | **Entorno** | Operación normal con usuarios y dispositivos simulados activos |
 | **Artefacto** | API de Aplicación, configuración de perfiles, BD Operativa y Motor de Reglas |
-| **Respuesta** | El sistema valida la configuración, crea una nueva versión del perfil, registra quién realizó el cambio y hace que los eventos posteriores sean evaluados utilizando la versión actualizada |
-| **Medida de respuesta** | La nueva configuración está disponible para evaluación en menos de 10 minutos, sin recompilar ni redesplegar el Motor de Reglas y sin interrumpir la recepción de eventos. El siguiente evento procesado para ese perfil permite verificar mediante auditoría qué versión de la regla fue aplicada |
+| **Respuesta** | El sistema valida la configuración, crea una nueva versión del perfil, registra quién realizó el cambio y hace que los eventos aceptados a partir de la activación sean evaluados utilizando dicha versión. |
+| **Medida de respuesta** | La nueva configuración está disponible para evaluación en menos de 10 minutos, sin recompilar ni redesplegar el Motor de Reglas y sin interrumpir la recepción de eventos. El primer evento aceptado para ese perfil después de la activación de la nueva versión permite verificar mediante auditoría que dicha versión fue aplicada. |
 
 **Tensión con:** QS-02 (Rendimiento), debido a que una mayor flexibilidad y configurabilidad puede incrementar el tiempo requerido para evaluar eventos y determinar su criticidad y QS-04 (Seguridad y privacidad), porque el versionado y la auditoría agregan almacenamiento y controles.
 
@@ -506,9 +506,9 @@ sequenceDiagram
 
     Note over ING,BUS: La ingesta responde sin esperar la evaluacion.<br/>El desacople temporal protege QS-01.
 
-    BUS->>MR: Entregar evento crudo
-    MR->>BDO: Leer reglas vigentes y estado de confirmacion
-    BDO-->>MR: Version de reglas y estado
+    BUS->>MR: Entregar evento crudo    
+    MR->>BDO: Leer perfil aplicable segun ReceivedAt y reglas asociadas
+    BDO-->>MR: Version aplicable, reglas y estado de confirmacion
     MR->>MR: Evaluar. Criticidad inmediata: no requiere ventana
     MR->>BDO: Registrar alerta con version de reglas y eventos origen
     MR->>BUS: Publicar alerta confirmada
@@ -586,17 +586,20 @@ sequenceDiagram
     AD->>WEB: Modificar umbral de inactividad de un perfil
     WEB->>API: Enviar la configuracion (HTTPS/JSON)
     API->>API: Autorizar por rol y validar la configuracion
-    API->>BDO: Guardar como version nueva de la regla
-    BDO-->>API: Version registrada
+    API->>BDO: Guardar y activar nueva version de configuracion
+    BDO-->>API: Nueva version activa
     API-->>WEB: Confirmacion
     WEB-->>AD: Regla vigente
 
     Note over API,BDO: La regla anterior se conserva.<br/>El versionado permite auditar que version<br/>evaluo cada alerta (ADR-002).
 
-    BUS->>MR: Entregar el siguiente evento del mismo adulto mayor
-    MR->>BDO: Leer reglas vigentes
-    BDO-->>MR: Version nueva
-    MR->>MR: Evaluar con la version nueva
+    Note over API,MR: Eventos aceptados despues de la activacion usan la nueva version.
+    Note over API,MR: Eventos aceptados antes conservan la version aplicable segun ReceivedAt.
+
+    BUS->>MR: Entregar evento del mismo adulto mayor
+    MR->>BDO: Leer perfil aplicable segun ReceivedAt y reglas asociadas
+    BDO-->>MR: Version aplicable y reglas
+    MR->>MR: Evaluar con la version aplicable
     MR->>BDO: Registrar la evaluacion con la version utilizada
 
     Note over MR: Sin recompilar, sin redesplegar y sin reiniciar<br/>ningun contenedor del sistema.
@@ -612,7 +615,7 @@ sequenceDiagram
 |---|---|---|---|
 | Detección y notificación de evento crítico | QS-02 | El camino completo se recorre dentro del presupuesto de latencia, con respuesta inmediata de la ingesta | Ingesta, Bus, Motor de Reglas, Notificaciones, ambas bases |
 | Fallo del proveedor de notificación | QS-03 | La alerta permanece bajo custodia del bus hasta confirmarse la entrega; el fallo de un canal no la destruye | Bus, Notificaciones, BD Operativa |
-| Cambio de regla en operación | QS-05 | La configuración se modifica en caliente y la evaluación siguiente ya utiliza la versión nueva | App Web, API, BD Operativa, Motor de Reglas |
+| Cambio de regla en operación | QS-05 | La configuración se modifica en caliente y los eventos aceptados a partir de la activación de la nueva versión son evaluados utilizando dicha versión, mientras los eventos aceptados previamente conservan la versión aplicable según su ReceivedAt. | App Web, API, BD Operativa, Motor de Reglas |
 
 Los tres flujos comparten una propiedad que conviene hacer explícita: en ningún momento un contenedor invoca sincrónicamente a otro dentro del camino crítico. Toda transición entre etapas ocurre a través del bus, lo que constituye la evidencia de comportamiento del estilo adoptado en §8 y de la decisión registrada en ADR-001.
 
@@ -841,6 +844,7 @@ Las vistas de este capítulo no se produjeron de una sola vez: se construyeron y
 | Avance 1 (S07) | 7.1 Vista de contexto | — |
 | Avance 2 (S11) | 7.2 Vista de contenedores | 7.2 (tres correcciones posteriores a la revisión interna) |
 | Entrega final (S14) | 7.3 Comportamiento, 7.4 Despliegue, 7.5 Concurrencia, 7.7 Componentes de dos subsistemas | — |
+| Correcciones posteriores a evaluación | — | 7.3 Vista de comportamiento: unificación de la semántica de versionamiento de perfiles |
 
 #### 7.6.2 Vista de contexto: estabilidad deliberada
 
@@ -867,6 +871,8 @@ Las vistas agregadas en este hito no modifican las anteriores: las complementan 
 La **vista de comportamiento** (§7.3) recorre en el tiempo las mismas relaciones ya declaradas en la tabla de §7.2.2, sin introducir participantes nuevos. La **vista de despliegue** (§7.4) asigna un nodo de ejecución a cada contenedor existente, sin crear contenedores adicionales. La **vista de concurrencia** (§7.5) describe cómo se multiplican en ejecución esos mismos contenedores y cómo se coordinan al compartir estado. La **vista de componentes** (§7.7) abre dos de los contenedores existentes y agrupa, con su misma nomenclatura, las clases cuyo diseño detallado se documenta en §10.
 
 Una de ellas, además, cerró una decisión que había quedado abierta: ADR-003 señalaba como consecuencia negativa que era necesario definir cómo recuperar el estado temporal de la ventana de confirmación tras un reinicio. La §7.5.3 resuelve ese punto al establecer que el estado se persiste en la BD Operativa dentro de la misma transacción de la evaluación, lo que permite que otra réplica retome una sesión interrumpida sin reiniciar la ventana.
+
+**Nota posterior a la evaluación.** Se unificó la semántica de versionamiento de perfiles, definiendo ReceivedAt —momento de aceptación durable del evento— como criterio para determinar la versión de configuración aplicable. El Motor de Reglas recupera la versión activa en dicho momento y registra su identificador como ProfileVersion, que se conserva durante las etapas posteriores del procesamiento. Como resultado, se ajustó la vista de comportamiento (§7.3) y se alineó esta semántica con QS-05, ADR-002, el diseño detallado de componentes y el análisis de calidad.
 
 #### 7.6.5 Cambios evaluados y descartados
 
@@ -1187,6 +1193,8 @@ Los cambios sin redespliegue se limitarán a parámetros y combinaciones de regl
 
 La incorporación de un nuevo tipo de regla o algoritmo requerirá implementación, pruebas y despliegue de un nuevo evaluador.
 
+La versión de configuración aplicable a cada evento se determina con base en el momento en que el evento fue aceptado por el sistema (ReceivedAt). El Motor de Reglas recupera la versión que se encontraba activa en ese momento y registra su identificador como ProfileVersion. Las etapas posteriores reutilizan dicha versión para mantener consistencia y trazabilidad durante todo el procesamiento.
+
 #### Alternativas consideradas
 
 | Alternativa | Ventajas | Desventajas | Motivo de descarte |
@@ -1223,7 +1231,7 @@ La incorporación de un nuevo tipo de regla o algoritmo requerirá implementaci�
 - **Componente detallado principal:** Motor de Reglas y Generación de Alertas.
 - **Patrón previsto:** Strategy para seleccionar el evaluador correspondiente al tipo de regla.
 - **Prueba prevista:** modificar el umbral de inactividad durante la operación y enviar eventos antes y después del cambio.
-- **Resultado esperado:** los eventos posteriores utilizan la nueva versión sin redesplegar el servicio.
+- **Resultado esperado:** los eventos aceptados a partir de la activación de la nueva versión utilizan dicha versión sin redesplegar el servicio, mientras que los eventos aceptados previamente conservan la versión aplicable según su `ReceivedAt`.
 
 #### Revisión requerida si
 
@@ -1896,13 +1904,13 @@ Esta sección valida los escenarios QS-01 a QS-05 contra las vistas arquitectón
 | **QS-02 — Rendimiento** | ≤ 5 s en p95 y ≤ 8 s en p99 desde la aceptación durable del evento hasta la aceptación por el primer proveedor | La propagación por eventos evita sondeo periódico; las sesiones ordenan únicamente por adulto mayor y permiten paralelismo entre personas distintas; ADR-002 utiliza tipos de reglas controlados; el Servicio de Notificaciones resuelve políticas y proveedores mediante contratos predefinidos. | ADR-001; ADR-002; §7.5.3; §10.1; §10.2; §10.3 | No existe todavía una prueba de carga ejecutada. Además, el tiempo entre la aceptación durable y la publicación efectiva del `OutboxMessage` forma parte del presupuesto de QS-02; la frecuencia y capacidad de `OutboxPublisher` deben dimensionarse para que esa espera no consuma una proporción significativa de los 5 s. El presupuesto temporal de §14.2.3 debe incluir explícitamente esta etapa. |
 | **QS-03 — Tolerancia a fallos / Resiliencia** | 100 % de eventos críticos asociados a un estado durable y trazable; 0 alertas huérfanas; primer fallback < 10 s en p95 | El Bus mantiene mensajes no confirmados para reentrega; el Motor de Reglas persiste `ConfirmationState` y no confirma el mensaje cuando no puede completar el procesamiento de forma segura; el Servicio de Notificaciones registra intentos y dispone de estrategias de fallback/reintento; el Servicio de Ingesta utiliza Transactional Outbox para conservar durablemente un evento aceptado aunque falle su publicación posterior. La recuperación del estado de confirmación tras reinicios se resuelve en §7.5.3 mediante persistencia en BD Operativa y recuperación por la réplica que retoma la sesión. | ADR-001; ADR-003; §7.3.2; §7.5.3; §10.1.4; §10.2.1–§10.2.4; §10.3.4 | Falta ejecutar la prueba de inyección de fallos y medir el tiempo real de fallback. Además, la semántica *at-least-once* puede producir efectos duplicados frente a proveedores externos si el envío fue aceptado pero el resultado no pudo persistirse antes de una reentrega. |
 | **QS-04 — Seguridad y privacidad** | 100 % de casos de autorización con HTTP 401/403 según corresponda; registro auditable consultable < 5 s | La API concentra autenticación y autorización; QS-04 exige autorización por rol y relación; el Servicio de Ingesta autentica fuentes; las comunicaciones usan TLS; el despliegue utiliza identidades administradas y Key Vault para reducir exposición de credenciales. El Componente 4 exige un contexto de usuario autorizado para publicar configuraciones y persiste `ConfigurationAuditEntry` junto con la nueva versión. | REST-02; QS-04; §7.2.1–§7.2.2; §7.4.2; §10.3.2; §10.4.2–§10.4.4; §12 | Las identidades administradas resuelven autenticación servicio-a-servicio, no la autenticación y autorización de usuarios finales. El mecanismo concreto de identidad, las políticas de rol/relación, la protección de la bitácora y la medida de auditoría < 5 s deben validarse en implementación. |
-| **QS-05 — Modificabilidad** | Nueva configuración disponible < 10 min sin recompilar ni redesplegar el Motor de Reglas | ADR-002 mantiene reglas y perfiles como configuración versionada. El Componente 4 materializa esa decisión mediante `ProfileConfigurationService`, `ProfileConfigurationVersion`, `ProfileConfigurationValidator`, `SaveAndActivateAsync` y `ConfigurationAuditEntry`: la nueva versión se construye, valida, persiste y activa de forma atómica, mientras la versión anterior permanece disponible para trazabilidad. `IRuleEvaluator`, `IChannelDeliveryStrategy` e `INotificationAdapter` mantienen estables los coordinadores ante nuevos evaluadores, políticas o proveedores compatibles. | ADR-002; ADR-004; §7.3.3; §10.1.1; §10.2.1; **§10.4.1–§10.4.4** | La creación, validación y activación de versiones ya está resuelta por diseño. Queda pendiente definir de forma única **cómo los consumidores seleccionan la versión aplicable** y garantizar su visibilidad dentro del límite de 10 min. Actualmente §7.3.3 supone que el Motor de Reglas consulta la versión vigente, mientras §10.1 y §10.3 incluyen `event.ProfileVersion`; esta semántica debe unificarse. Si se utiliza caché, también debe definirse su política de actualización o invalidación. |
+| **QS-05 — Modificabilidad** | Nueva configuración disponible < 10 min sin recompilar ni redesplegar el Motor de Reglas | ADR-002 mantiene reglas y perfiles como configuración versionada. El Componente 4 materializa esa decisión mediante `ProfileConfigurationService`, `ProfileConfigurationVersion`, `ProfileConfigurationValidator`, `SaveAndActivateAsync` y `ConfigurationAuditEntry`: la nueva versión se construye, valida, persiste y activa de forma atómica, mientras la versión anterior permanece disponible para trazabilidad. `IRuleEvaluator`, `IChannelDeliveryStrategy` e `INotificationAdapter` mantienen estables los coordinadores ante nuevos evaluadores, políticas o proveedores compatibles. | ADR-002; ADR-004; §7.3.3; §10.1.1; §10.2.1; **§10.4.1–§10.4.4** | La creación, validación y activación de versiones está resuelta por diseño. La versión aplicable a cada evento se determina según el momento de su aceptación (ReceivedAt), conforme a ADR-002, y se conserva como ProfileVersion durante las etapas posteriores del procesamiento. Como riesgo residual, debe garantizarse que la activación de una nueva versión sea visible para los eventos aceptados posteriormente dentro del límite de 10 min definido por QS-05. Si se utiliza caché, también debe definirse su política de actualización o invalidación. |
 
 ### 13.1.1 Resultado de la validación
 
 Los cinco escenarios poseen soporte explícito en la arquitectura, pero ninguno de los valores cuantitativos debe presentarse como demostrado mientras no existan pruebas ejecutadas. QS-03 y QS-05 poseen mecanismos estructurales particularmente claros —persistencia durable, reentrega, versionado, activación atómica, estrategias y adaptadores—, mientras QS-01, QS-02 y QS-04 dependen en mayor medida de configuración de infraestructura y validación operativa.
 
-La incorporación del Componente 4 fortalece especialmente QS-05: la publicación de configuraciones ya no es una responsabilidad implícita de la API, sino un caso de uso diseñado con contratos, validación, persistencia atómica, historial y auditoría. El principal riesgo residual de QS-05 se desplaza por tanto desde **cómo crear una versión consistente** hacia **cómo los consumidores determinan y observan la versión vigente**.
+La incorporación del Componente 4 fortalece especialmente QS-05: la publicación de configuraciones ya no es una responsabilidad implícita de la API, sino un caso de uso diseñado con contratos, validación, persistencia atómica, historial y auditoría. La selección de la versión aplicable queda definida mediante `ReceivedAt`, conforme a ADR-002. El principal riesgo residual de QS-05 se concentra en garantizar que la activación de una nueva versión sea visible para los eventos aceptados posteriormente dentro del límite de 10 minutos establecido.
 
 ### 13.2 Análisis de trade-offs entre atributos de calidad
 
@@ -2298,7 +2306,7 @@ El glosario define el lenguaje ubicuo utilizado en SeniorCareHub. Los términos 
 | **OutboxMessage** | Registro durable que representa la intención de publicar posteriormente un evento aceptado hacia el Bus de Mensajería. Se almacena en la misma transacción que `MonitoringEvent`. |
 | **Particionamiento por sesión** | Estrategia de concurrencia que utiliza sesiones del Bus de Mensajería para mantener orden y exclusividad de procesamiento por adulto mayor sin utilizar bloqueos explícitos en el código (§7.5). |
 | **Perfil de monitoreo** | Configuración individual asociada a un adulto mayor que contiene parámetros de monitoreo y reglas aplicables. Forma parte de la configuración versionada utilizada por el Motor de Reglas. |
-| **ProfileVersion** | Identificador de la versión de configuración utilizada durante una evaluación. La versión aplicada debe quedar registrada en la alerta para permitir trazabilidad y para que etapas posteriores recuperen la configuración correspondiente. |
+| **ProfileVersion** | Identificador de la versión de configuración utilizada durante una evaluación. La versión aplicable se determina según la configuración que se encontraba activa en el momento de aceptación del evento (`ReceivedAt`) y queda registrada en la alerta para permitir trazabilidad y para que las etapas posteriores recuperen la configuración correspondiente. |
 | **Proveedor externo de notificación** | Servicio fuera del control de SeniorCareHub que realiza la entrega efectiva por SMS, correo o mensajería. Sus contratos y fallos se aíslan mediante `INotificationAdapter` (REST-01, ADR-004). |
 | **Publicación-suscripción (Publish-Subscribe)** | Estilo de mensajería donde los productores publican mensajes en un intermediario y los consumidores los reciben mediante suscripciones, sin que exista una dependencia directa entre productor y consumidor. |
 | **Regla de monitoreo (`MonitoringRule`)** | Configuración que define una condición evaluable sobre un evento, por ejemplo umbral de inactividad, condición de caída o salida de zona segura. |
